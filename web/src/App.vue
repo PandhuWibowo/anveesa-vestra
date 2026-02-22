@@ -63,6 +63,7 @@
       <BucketBrowser
         v-else-if="mode === 'browse' && activeConn"
         :conn="activeConn"
+        :connections="connections"
         @delete="handleDelete(activeConn.provider, activeConn.id)"
       />
 

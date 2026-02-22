@@ -1,6 +1,6 @@
 # File Browser
 
-The file browser is the main workspace in Anveesa Vestra. Select any connection from the sidebar to open it.
+The file browser is the main workspace in Anveesa Vestra. Click any connection in the sidebar to open it.
 
 ---
 
@@ -8,141 +8,329 @@ The file browser is the main workspace in Anveesa Vestra. Select any connection 
 
 ### Folders
 
-Buckets are shown as a hierarchical folder tree. Click any folder (displayed with a `/` suffix) to enter it. The current path is shown in the **breadcrumb bar** at the top of the file list.
-
-Click any segment in the breadcrumb to jump back to that level. Click the bucket name at the far left to return to the root.
+Buckets are displayed as a hierarchical folder tree. Click any folder row to enter it. The **breadcrumb bar** below the connection name shows the current path. Click any segment in the breadcrumb to jump back to that level. Click **root** to return to the bucket root.
 
 ### Pagination
 
-Anveesa Vestra loads **200 objects per page**. As you scroll down, the next page is fetched automatically when the sentinel row at the bottom comes into view (infinite scroll). A spinner appears during loading.
+The browser loads **200 objects per page**. As you scroll to the bottom, the next page is fetched automatically (infinite scroll). A loading indicator appears in the last row during fetching.
+
+### Navigate Up
+
+Click any breadcrumb segment, or press `Backspace` to go up one level.
 
 ---
 
-## Toolbar Actions
+## Toolbar
 
-| Button | Description |
+| Control | Description |
 |---|---|
-| Upload | Open the file picker (also accepts drag-and-drop onto the table) |
+| Search box | Filter visible files by name — press `/` to focus |
+| Grid / List toggle | Switch between table view and grid/thumbnail view |
 | New Folder | Create an empty folder (uploads a hidden `.keep` placeholder) |
-| Stats | Fetch and display object count and total bucket size |
-| Refresh | Reload the current folder listing |
+| Upload | Pick files to upload to the current folder |
+| Upload Folder | Pick a local folder to upload, preserving subfolder structure |
+| Stats button | Toggle the bucket stats bar (object count + total size) |
+| Refresh button | Reload the current folder listing (`r`) |
+| Delete Connection | Remove this connection from the app |
 
 ---
 
-## File Operations
+## Uploading Files
 
-### Upload
+### Click to Upload
 
-- Click **Upload** or drag files onto the file table.
-- Multiple files can be selected at once.
-- Files are uploaded to the **current folder prefix** — navigate into a folder before uploading to place files there.
-- A toast notification confirms each successful upload.
+Click **Upload** in the toolbar to open the system file picker. You can select multiple files. Files are uploaded to the **current folder prefix**.
 
-### Download
+### Drag-and-Drop
 
-Click the **download icon** in a file's action column. Anveesa Vestra generates a signed URL (GCS), presigned URL (S3/OBS/OSS), or a direct SAS URL (Azure) that expires after 15 minutes and opens the download in a new tab.
+Drag files from your desktop and drop them anywhere on the file list area. A drop overlay appears to confirm the drop zone. Files go to the current folder.
 
-> Signed URLs bypass public-access restrictions — the file does not need to be publicly readable.
+### Upload Progress
 
-### Delete
+While uploading, a **per-file progress panel** appears above the file list. Each row shows:
 
-Click the **trash icon** next to a file. A confirmation dialog appears before the delete is executed. Folders cannot be deleted directly — delete all files inside them first.
+- File name
+- Live percentage (`0%` → `100%`)
+- ✓ when done, ✗ on error
 
-### Rename / Move
+The panel fades out 1.5 seconds after all uploads finish.
 
-Click the **rename icon** next to a file to open the rename dialog. Enter the new name and click **Move**. The operation is implemented as a **copy + delete**:
+### Folder Upload
 
-1. The object is copied to `current-prefix/new-name`.
-2. The original object is deleted.
+Click **Folder** in the toolbar to pick an entire local directory. The subfolder structure is preserved:
+
+- A local file at `photos/2024/jan/img.jpg` uploads to `<current-prefix>photos/2024/jan/img.jpg`.
+- Each file shows its relative path in the upload progress panel.
 
 ---
 
-## Bulk Operations
+## Downloading Files
 
-### Selecting Files
+### Single File
 
-Click the **checkbox** on any row to select it. Click the **header checkbox** to select all files currently loaded on the page.
+Click the **download icon** in a file's action column. The backend generates a time-limited URL and opens it in a new tab:
 
-The **selection bar** appears at the top of the file list when one or more files are selected. It shows the count of selected files and offers:
+| Provider | URL type | Default expiry |
+|---|---|---|
+| GCS | Signed URL (V4) | 15 minutes |
+| AWS / R2 / MinIO | Presigned URL | 15 minutes |
+| Huawei OBS | Presigned URL | 15 minutes |
+| Alibaba OSS | Presigned URL | 15 minutes |
+| Azure | SAS URL | 15 minutes |
+
+> Signed/presigned URLs bypass public-access restrictions — the file does not need to be publicly readable.
+
+### Zip Download
+
+Download an entire folder or a multi-file selection as a `.zip` archive:
+
+- **Folder zip** — click the **download icon** on any folder row. The backend lists all objects under the prefix and streams a zip.
+- **Bulk zip** — select files with checkboxes, then click **Download as Zip** in the selection bar.
+
+The archive filename matches the folder name (or `selection.zip` for multi-select).
+
+---
+
+## File Preview
+
+Click the **eye icon** on any file row to open the preview panel on the right side of the browser.
+
+### Supported Formats
+
+| Format | How it is previewed |
+|---|---|
+| Images (jpg, png, gif, webp, svg, …) | `<img>` tag — loads directly from the signed URL |
+| PDF | `<iframe>` — rendered by the browser's built-in PDF viewer |
+| Markdown (`.md`, `.markdown`) | Rendered to HTML via `marked` |
+| Plain text, JSON, YAML, code, logs | Shown in a monospace `<pre>` block (up to 50 KB) |
+| Video (mp4, webm, mov, …) | HTML5 `<video>` player with controls |
+| Audio (mp3, wav, ogg, flac, …) | HTML5 `<audio>` player with a music-note icon |
+| Everything else | "No preview available" message |
+
+The preview panel footer shows the file size, MIME type, and a **Download** button.
+
+Press `Escape` or click `×` to close the panel.
+
+---
+
+## Deleting Files
+
+### Single File
+
+Click the **trash icon** next to a file. A confirmation dialog appears; confirm to delete.
+
+Press `Delete` on the keyboard to delete the currently focused row.
+
+### Folder (Recursive)
+
+Click the **trash icon** on a folder row. This performs a **recursive delete** — all objects under that prefix are removed. The confirmation dialog shows the folder name. A success toast reports how many files were removed.
+
+### Bulk Delete
+
+Select files with their checkboxes, then click **Delete all** in the selection bar. One confirmation covers the entire selection.
+
+---
+
+## Renaming / Moving Files
+
+Click the **rename icon** (pencil) next to any file. Enter a new name in the dialog and click **Move**. The operation is implemented as copy + delete:
+
+1. Object is copied to `current-prefix/new-name`.
+2. Original is deleted.
+
+The rename only changes the filename within the current folder. To move to a different folder, include the path in the new name field (e.g. `archive/old-report.pdf`).
+
+---
+
+## Multi-Select & Bulk Operations
+
+Click any file's checkbox to select it. The **header checkbox** selects all visible files. When one or more files are selected, the **selection bar** appears:
 
 | Action | Description |
 |---|---|
-| Download all | Download each selected file sequentially |
-| Delete all | Delete all selected files with a single confirmation |
+| Count badge | Shows how many files are selected |
+| Download all | Downloads each selected file sequentially (one signed URL per file) |
+| Download as Zip | Streams a single `.zip` of all selected files |
+| Delete all | Deletes all selected files with a single confirmation |
+| ✕ button | Clears the selection |
 
 ---
 
-## Search
+## Sorting
 
-Type in the **search box** above the file list to filter the currently loaded objects by name. The filter is applied client-side against the visible page — it does not search the full bucket. Scroll down to load more objects, then search again for broader results.
+Click any **column header** to sort:
 
-Press `/` to focus the search box from anywhere in the browser. Press `Escape` to clear it.
+| Column | Sorts by |
+|---|---|
+| Name | Alphabetical (case-insensitive) |
+| Size | File size in bytes |
+| Modified | Last-modified timestamp |
+
+Click the same header again to reverse the order. Directories always appear before files regardless of sort.
+
+---
+
+## Search / Filter
+
+Type in the **search box** in the toolbar to instantly filter the current folder by filename. The search is client-side and applies to the objects already loaded. Press `/` to focus the box from the keyboard, and `Escape` to clear it.
+
+> The search only filters what is loaded in memory. Scroll down to load more objects before searching for items further in the list.
+
+---
+
+## Grid / Thumbnail View
+
+Click the **grid icon** in the toolbar to switch from the default table view to a card grid. In grid view:
+
+- Image files show a **thumbnail** fetched from the signed URL.
+- Folders and non-image files show a generic icon.
+- Clicking a card enters the folder or opens the preview panel.
+- Multi-select checkboxes appear on hover.
+- All keyboard shortcuts work normally.
+
+Click the **list icon** to switch back to table view. The preference is stored in `localStorage`.
+
+---
+
+## Sharing Files (Presigned Link Generator)
+
+Click the **share icon** (three dots connected by lines) on any file row to open the shareable link dialog.
+
+1. Choose an expiry preset: **15 min**, **1 hour**, **24 hours**, or **7 days**.
+2. Click **Generate Link** — the backend creates a signed URL with the selected expiry.
+3. The URL appears in a copyable input. Click **Copy** to send it to the clipboard.
+4. Click **Regenerate** to create a fresh link with a new expiry.
+
+> The link gives read access to that specific file for the selected duration regardless of bucket permissions. It does not make the file permanently public.
+
+---
+
+## CLI Command Copy
+
+Click the **terminal icon** on any file row to open the CLI commands dialog. It generates provider-specific commands for common operations:
+
+| Command | Description |
+|---|---|
+| `download` | Copy the file to your local machine |
+| `delete` | Remove the file from the bucket |
+| `ls` | List objects in the current folder |
+
+Click **Copy** next to any command to send it to the clipboard.
+
+| Provider | Tool used |
+|---|---|
+| AWS / R2 / MinIO | `aws s3` |
+| GCS | `gsutil` |
+| Azure | `azcopy` |
+| Alibaba OSS | `ossutil` |
+| Huawei OBS | `obsutil` |
+
+---
+
+## Cross-Connection Transfer
+
+Click the **send icon** on any file row to open the transfer dialog. This copies the file from the current connection to any other saved connection:
+
+1. Pick a **Destination Connection** from the list.
+2. Optionally enter a **Destination Prefix** (e.g. `backups/`) — leave blank to place the file at the root.
+3. Click **Transfer**.
+
+The file is downloaded server-side and re-uploaded to the destination. The original is not deleted. A success toast confirms the destination path.
 
 ---
 
 ## Metadata Editor
 
-Click the **info icon** (ℹ) next to any file to open its metadata panel. The panel loads and displays:
+Click the **info icon** (ⓘ) on any file row to open the metadata panel.
 
 | Field | Editable | Description |
 |---|---|---|
 | Content-Type | Yes | MIME type used when the file is served |
-| Cache-Control | Yes | HTTP caching directive |
+| Cache-Control | Yes | HTTP caching directive (e.g. `public, max-age=31536000`) |
 | Custom metadata | Yes | Arbitrary key-value pairs stored on the object |
-| Size | No | File size in bytes |
-| Last modified | No | UTC timestamp of the last write |
+| Size | No | File size (formatted) |
+| Last modified | No | UTC timestamp |
 | ETag | No | Entity tag for cache validation |
 | MD5 | No (GCS only) | Base64-encoded MD5 hash |
 
-Click **Save** to write changes back to the bucket. For S3-compatible providers and OBS/OSS, metadata is updated via a copy-to-self operation with `MetadataDirective: REPLACE`.
+Click **+ Add** to add a custom metadata key-value pair. Click the **✕** on any row to remove it. Click **Save** to write changes back.
+
+> For S3, OBS, and OSS, metadata updates are implemented as a copy-to-self with `MetadataDirective: REPLACE`, because these APIs don't allow in-place metadata edits.
 
 ---
 
 ## Bucket Statistics
 
-Click the **Stats** button in the toolbar to fetch bucket statistics. The backend samples up to **1,000 objects** to compute:
+Click the **bar-chart icon** in the browser header to toggle the stats bar. The stats are fetched once and cached until the connection changes or the page is refreshed.
 
-- **Object count** — total number of objects in the bucket
-- **Total size** — sum of all object sizes (formatted as KB / MB / GB)
-
-If the bucket contains more than 1,000 objects the result is marked as **estimated**.
-
----
-
-## Copying a File Path
-
-Click the **copy path icon** (clipboard) on any file row to copy its full object path to the clipboard. The format depends on the provider:
-
-| Provider | Path format |
+| Stat | Description |
 |---|---|
-| GCS | `gs://bucket-name/path/to/file.txt` |
-| AWS / R2 / MinIO / OBS / OSS | `s3://bucket-name/path/to/file.txt` |
-| Azure | `az://container-name/path/to/file.txt` |
+| Object count | Total number of objects in the bucket (may be estimated) |
+| Total size | Sum of all object sizes, formatted as KB / MB / GB / TB |
+
+If the bucket has more than 1,000 objects, the count is marked **(est.)**.
 
 ---
 
-## Drag and Drop Upload
+## Copying File Paths and Links
 
-Drag one or more files from your desktop and drop them anywhere on the file table. The upload begins immediately and places files in the current folder prefix. Each file's progress is confirmed with a toast notification.
+Each file row has two copy buttons:
+
+| Button | What it copies |
+|---|---|
+| Clipboard icon | Storage protocol URL: `gs://`, `s3://`, or `az://` |
+| Link icon | Presigned HTTP download link (15-minute expiry) |
+
+---
+
+## Creating Folders
+
+Click the **folder+ icon** in the toolbar, enter a name, and click **Create**. The backend uploads a hidden `.keep` placeholder file inside the new folder to materialise the prefix. The folder appears immediately in the listing.
+
+---
+
+## Keyboard Shortcuts
+
+The browser responds to the following keyboard shortcuts when focus is not in a text input:
+
+| Key | Action |
+|---|---|
+| `j` / `↓` | Move highlight to the next row |
+| `k` / `↑` | Move highlight to the previous row |
+| `Enter` | Open the highlighted folder, or preview the highlighted file |
+| `d` | Download the highlighted file |
+| `Delete` | Delete the highlighted file or folder (with confirmation) |
+| `/` | Focus the search box |
+| `r` | Refresh the current folder listing |
+| `Backspace` | Navigate up one folder level |
+| `Escape` | Close preview/metadata panel → clear search → deselect rows |
+
+Row focus also tracks mouse hover, so j/k picks up from wherever the cursor is.
+
+A hint strip at the bottom of the file list summarises all shortcuts.
+
+---
+
+## Pinned Connections
+
+Click the **star icon** on any connection item in the sidebar to pin it. Pinned connections float to the top of the list above unpinned ones. The star fills in to indicate an active pin. The section label changes to **Pinned · All** when at least one connection is pinned. Pins are stored in `localStorage` and persist across sessions.
 
 ---
 
 ## Provider Badge & Icon
 
-The browser header shows a colored icon badge indicating which provider the active connection uses:
+The browser header shows a colored badge indicating which provider the active connection uses:
 
-| Provider | Badge label | Color |
-|---|---|---|
-| Google Cloud Storage | GCS | Blue |
-| Amazon S3 / R2 / MinIO | S3 | Amber |
-| Huawei OBS | OBS | Red |
-| Alibaba Cloud OSS | OSS | Orange |
-| Azure Blob Storage | Azure | Sky blue |
-
-The current bucket name and connection name are also shown in the header.
+| Provider | Badge color |
+|---|---|
+| Google Cloud Storage | Blue |
+| Amazon S3 / R2 / MinIO | Amber |
+| Huawei OBS | Red |
+| Alibaba Cloud OSS | Orange |
+| Azure Blob Storage | Sky blue |
 
 ---
 
 ## Sidebar Provider Filter
 
-When you have connections from more than one provider, **filter chips** appear above the connection list in the sidebar. Click a chip to show only connections from that provider. Click it again to deselect. Multiple chips can be active simultaneously.
+When you have connections from more than one provider, **filter chips** appear above the connection list. Click a chip to show only connections from that provider. Multiple chips can be active simultaneously. Click a chip again to remove its filter.

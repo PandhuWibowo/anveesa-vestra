@@ -324,11 +324,13 @@ func ListGCPObjects(w http.ResponseWriter, r *http.Request) {
 }
 
 // GCPDownloadURL returns a public or signed download URL for an object.
+// Optional expires_in (seconds) controls signed URL lifetime; defaults to 900s.
 func GCPDownloadURL(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Bucket      string `json:"bucket"`
 		Credentials string `json:"credentials"`
 		Object      string `json:"object"`
+		ExpiresIn   int64  `json:"expires_in"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -343,7 +345,12 @@ func GCPDownloadURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Authenticated — signed URL (15 min)
+	expiry := time.Duration(req.ExpiresIn) * time.Second
+	if expiry <= 0 {
+		expiry = 15 * time.Minute
+	}
+
+	// Authenticated — signed URL
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -357,7 +364,7 @@ func GCPDownloadURL(w http.ResponseWriter, r *http.Request) {
 	signed, err := client.Bucket(req.Bucket).SignedURL(req.Object, &storage.SignedURLOptions{
 		Scheme:  storage.SigningSchemeV4,
 		Method:  "GET",
-		Expires: time.Now().Add(15 * time.Minute),
+		Expires: time.Now().Add(expiry),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -567,6 +574,44 @@ func GetGCPMetadata(w http.ResponseWriter, r *http.Request) {
 		"etag":          attrs.Etag,
 		"md5":           fmt.Sprintf("%x", attrs.MD5),
 	})
+}
+
+// DeletePrefixGCP deletes all objects under a given prefix (recursive folder delete).
+func DeletePrefixGCP(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Bucket      string `json:"bucket"`
+		Credentials string `json:"credentials"`
+		Prefix      string `json:"prefix"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	client, err := gcpClient(ctx, req.Credentials)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer client.Close()
+
+	it := client.Bucket(req.Bucket).Objects(ctx, &storage.Query{Prefix: req.Prefix})
+	deleted := 0
+	for {
+		attrs, iterErr := it.Next()
+		if iterErr == iterator.Done {
+			break
+		}
+		if iterErr != nil {
+			http.Error(w, iterErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		client.Bucket(req.Bucket).Object(attrs.Name).Delete(ctx)
+		deleted++
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"deleted": deleted})
 }
 
 // UpdateGCPMetadata patches content-type, cache-control, and custom metadata on a GCS object.

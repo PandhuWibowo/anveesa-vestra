@@ -101,6 +101,19 @@ func main() {
 	mux.HandleFunc("/api/azure/bucket/metadata",        middleware.CORS(handlers.GetAzureMetadata))
 	mux.HandleFunc("/api/azure/bucket/metadata/update", middleware.CORS(handlers.UpdateAzureMetadata))
 
+	// ── Delete-prefix (recursive folder delete) ───────────────────
+	mux.HandleFunc("/api/gcp/bucket/delete-prefix",     middleware.CORS(handlers.DeletePrefixGCP))
+	mux.HandleFunc("/api/aws/bucket/delete-prefix",     middleware.CORS(handlers.DeletePrefixAWS))
+	mux.HandleFunc("/api/huawei/bucket/delete-prefix",  middleware.CORS(handlers.DeletePrefixHuawei))
+	mux.HandleFunc("/api/alibaba/bucket/delete-prefix", middleware.CORS(handlers.DeletePrefixAlibaba))
+	mux.HandleFunc("/api/azure/bucket/delete-prefix",   middleware.CORS(handlers.DeletePrefixAzure))
+
+	// ── Cross-connection transfer ──────────────────────────────────
+	mux.HandleFunc("/api/transfer", middleware.CORS(handlers.TransferObject))
+
+	// ── Zip download ──────────────────────────────────────────────
+	mux.HandleFunc("/api/zip", middleware.CORS(handlers.ZipObjects))
+
 	// ── Docs ──────────────────────────────────────────────────────
 	mux.HandleFunc("/api/docs/", middleware.CORS(handlers.ServeDocs))
 

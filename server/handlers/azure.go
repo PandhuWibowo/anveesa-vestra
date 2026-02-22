@@ -403,12 +403,13 @@ func ListAzureObjects(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// AzureDownloadURL generates a SAS download URL (15 min expiry).
+// AzureDownloadURL generates a SAS download URL (default 15 min; customisable via expires_in seconds).
 func AzureDownloadURL(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Bucket      string `json:"bucket"`
 		Credentials string `json:"credentials"`
 		Object      string `json:"object"`
+		ExpiresIn   int64  `json:"expires_in"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -421,6 +422,11 @@ func AzureDownloadURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expiry := time.Duration(req.ExpiresIn) * time.Second
+	if expiry <= 0 {
+		expiry = 15 * time.Minute
+	}
+
 	cred, err := azureCred(accountName, accountKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -431,7 +437,7 @@ func AzureDownloadURL(w http.ResponseWriter, r *http.Request) {
 	sasValues := sas.BlobSignatureValues{
 		Protocol:      sas.ProtocolHTTPS,
 		StartTime:     time.Now().UTC().Add(-10 * time.Second),
-		ExpiryTime:    time.Now().UTC().Add(15 * time.Minute),
+		ExpiryTime:    time.Now().UTC().Add(expiry),
 		Permissions:   perms.String(),
 		ContainerName: req.Bucket,
 		BlobName:      req.Object,
@@ -708,6 +714,52 @@ func GetAzureMetadata(w http.ResponseWriter, r *http.Request) {
 		"updated":       updated,
 		"etag":          etag,
 	})
+}
+
+// DeletePrefixAzure deletes all blobs under a given prefix (recursive folder delete).
+func DeletePrefixAzure(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Bucket      string `json:"bucket"`
+		Credentials string `json:"credentials"`
+		Prefix      string `json:"prefix"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	accountName, accountKey, err := azureCredsFromJSON(req.Credentials)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	containerClient, _, err := azureContainerClient(accountName, accountKey, req.Bucket)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	pager := containerClient.NewListBlobsFlatPager(&azcontainer.ListBlobsFlatOptions{
+		Prefix: strPtr(req.Prefix),
+	})
+	deleted := 0
+	for pager.More() {
+		page, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			http.Error(w, pageErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		for _, blob := range page.Segment.BlobItems {
+			if blob.Name == nil {
+				continue
+			}
+			containerClient.NewBlobClient(*blob.Name).Delete(ctx, nil)
+			deleted++
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"deleted": deleted})
 }
 
 // UpdateAzureMetadata patches an Azure blob's metadata in-place (no copy-to-self needed).

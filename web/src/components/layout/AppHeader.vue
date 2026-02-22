@@ -54,7 +54,9 @@
 
       <template v-else>
         <!-- Section label -->
-        <div v-if="filtered.length" class="section-label">Connections</div>
+        <div v-if="filtered.length" class="section-label">
+          {{ filtered.some(c => isPinned(c.provider, c.id)) ? 'Pinned · All' : 'Connections' }}
+        </div>
 
         <!-- Empty -->
         <div v-if="!filtered.length && !connections.length" class="sidebar-empty">
@@ -76,6 +78,17 @@
             <div class="conn-item__name">{{ c.name }}</div>
             <div class="conn-item__bucket">{{ c.bucket }}</div>
           </div>
+          <!-- Pin -->
+          <button
+            class="conn-item__del"
+            :class="{ 'is-pinned': isPinned(c.provider, c.id) }"
+            @click.stop="togglePin(c.provider, c.id)"
+            :title="isPinned(c.provider, c.id) ? 'Unpin' : 'Pin to top'"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" :fill="isPinned(c.provider, c.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </button>
           <!-- Edit -->
           <button
             class="conn-item__del"
@@ -134,6 +147,7 @@ import { ref, computed } from 'vue'
 import SkeletonLoader from '../ui/SkeletonLoader.vue'
 import ProviderIcon   from '../ui/ProviderIcon.vue'
 import { useTheme }   from '../../composables/useTheme.js'
+import { usePins }    from '../../composables/usePins.js'
 
 const PROV_SHORT = { gcp: 'GCS', aws: 'S3', huawei: 'OBS', alibaba: 'OSS', azure: 'Azure' }
 
@@ -147,6 +161,7 @@ const props = defineProps({
 defineEmits(['new-connection', 'select', 'edit', 'delete', 'docs'])
 
 const { isLight, toggleTheme } = useTheme()
+const { isPinned, togglePin }  = usePins()
 
 const query          = ref('')
 const filterProviders = ref(new Set())
@@ -168,6 +183,12 @@ const filtered = computed(() => {
   if (filterProviders.value.size > 0)
     list = list.filter(c => filterProviders.value.has(c.provider))
   const q = query.value.toLowerCase().trim()
-  return q ? list.filter(c => c.name.toLowerCase().includes(q) || c.bucket.toLowerCase().includes(q)) : list
+  if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || c.bucket.toLowerCase().includes(q))
+  // Pinned connections bubble to the top
+  return [...list].sort((a, b) => {
+    const pa = isPinned(a.provider, a.id) ? 0 : 1
+    const pb = isPinned(b.provider, b.id) ? 0 : 1
+    return pa - pb
+  })
 })
 </script>

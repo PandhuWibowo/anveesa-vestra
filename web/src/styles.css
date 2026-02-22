@@ -1158,6 +1158,7 @@ body {
   cursor: pointer;
 }
 .file-table tbody tr.is-selected td { background: var(--accent-bg); }
+.file-table tbody tr.is-focused td  { background: var(--surface-2); outline: 2px solid var(--accent-ring); outline-offset: -1px; }
 
 /* ─── Selection action bar ────────────────────────────────────── */
 .selection-bar {
@@ -1487,6 +1488,241 @@ body {
   border: none;
   border-top: 1px solid var(--border);
   margin: 32px 0;
+}
+
+/* ─── Upload queue (per-file progress) ───────────────────────── */
+.upload-queue {
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.upload-queue-item { display: flex; flex-direction: column; gap: 3px; }
+.upload-item-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-2); }
+.upload-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; }
+.upload-item-status { flex-shrink: 0; font-family: var(--mono); }
+.upload-item-status.done  { color: var(--success); }
+.upload-item-status.error { color: var(--danger); }
+.progress-fill--error { background: var(--danger) !important; }
+
+/* ─── PDF + Markdown preview ──────────────────────────────────── */
+.preview-pdf {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+.preview-markdown {
+  padding: 16px 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow: auto;
+  color: var(--text-2);
+}
+.preview-markdown h1,
+.preview-markdown h2 { font-size: 14px; font-weight: 600; color: var(--text); margin: 12px 0 4px; }
+.preview-markdown h3 { font-size: 13px; font-weight: 600; color: var(--text); margin: 10px 0 4px; }
+.preview-markdown p  { margin-bottom: 10px; }
+.preview-markdown code {
+  font-family: var(--mono);
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.preview-markdown pre {
+  background: var(--surface-2);
+  padding: 10px;
+  border-radius: var(--r-sm);
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+.preview-markdown pre code { background: none; padding: 0; }
+.preview-markdown a { color: var(--accent); }
+.preview-markdown ul,
+.preview-markdown ol { padding-left: 18px; margin-bottom: 10px; }
+
+/* ─── Video + Audio preview ───────────────────────────────────── */
+.preview-video {
+  width: 100%;
+  border-radius: var(--r);
+  background: #000;
+  display: block;
+}
+.preview-audio-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 32px 16px;
+  color: var(--text-2);
+}
+.preview-audio {
+  width: 100%;
+}
+
+/* ─── Transfer modal ──────────────────────────────────────────── */
+.transfer-conn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 4px;
+  margin-top: 6px;
+}
+.transfer-conn-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  transition: background var(--dur) var(--ease);
+}
+.transfer-conn-item:hover  { background: var(--surface-2); }
+.transfer-conn-item.active { background: var(--accent-bg); color: var(--accent); }
+
+/* ─── Keyboard hints bar ──────────────────────────────────────── */
+.kb-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 22px;
+  font-size: 11px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+.kb-hints kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  margin-right: 2px;
+}
+
+/* ─── Pinned connection star ──────────────────────────────────── */
+.conn-item__del.is-pinned { color: var(--aws); opacity: 1; }
+
+/* ─── Grid / thumbnail view ───────────────────────────────────── */
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  padding: 14px 16px;
+}
+.file-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: var(--r);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  position: relative;
+}
+.file-card:hover { background: var(--surface-2); }
+.file-card.is-dir { color: var(--accent); }
+.file-card.is-selected { background: var(--accent-bg); border-color: var(--accent-ring); }
+.file-card.is-focused { outline: 2px solid var(--accent); outline-offset: 2px; }
+.file-card__thumb {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  position: relative;
+}
+.file-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.file-card__check {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  opacity: 0;
+  transition: opacity .1s;
+}
+.file-card:hover .file-card__check,
+.file-card.is-selected .file-card__check { opacity: 1; }
+.file-card__name {
+  font-size: 11px;
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.3;
+  max-height: 2.6em;
+  overflow: hidden;
+  color: var(--text);
+}
+.file-card__meta { font-size: 10px; color: var(--muted); }
+
+/* ─── Presign modal ───────────────────────────────────────────── */
+.presign-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.presign-chip {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.presign-chip:hover { border-color: var(--accent-ring); color: var(--accent); }
+.presign-chip.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.presign-result {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ─── CLI modal ───────────────────────────────────────────────── */
+.cli-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+}
+.cli-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: capitalize;
+  min-width: 52px;
+  flex-shrink: 0;
+}
+.cli-code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Responsive ──────────────────────────────────────────────── */
