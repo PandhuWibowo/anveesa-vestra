@@ -31,6 +31,12 @@
       </div>
 
       <div class="browser-hd__actions">
+        <!-- Bookmark this location -->
+        <button class="icon-btn" :class="{ 'is-bookmarked': isCurrentBookmarked }" @click="toggleCurrentBookmark" :title="isCurrentBookmarked ? 'Remove bookmark' : 'Bookmark this location'">
+          <svg width="13" height="13" viewBox="0 0 24 24" :fill="isCurrentBookmarked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+        </button>
         <button class="icon-btn" :style="showStats ? 'background:var(--accent-bg);color:var(--accent);border-color:var(--accent-ring)' : ''" @click="toggleStats" title="Bucket stats">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
@@ -180,7 +186,7 @@
             <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
             <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
           </svg>
-          Drop to upload here
+          {{ isCrossTarget ? 'Drop to copy here' : 'Drop to upload here' }}
         </div>
       </div>
 
@@ -274,6 +280,9 @@
             class="file-row"
             :class="{ 'is-dir': entry.type === 'dir', 'is-selected': selected.has(entry.name), 'is-focused': entryIdx === focusedIdx }"
             @mouseenter="focusedIdx = entryIdx"
+            :draggable="entry.type === 'file'"
+            @dragstart="onRowDragStart($event, entry)"
+            @dragend="onRowDragEnd"
           >
             <td class="col-check">
               <input v-if="entry.type === 'file'" type="checkbox" :checked="selected.has(entry.name)" @change="toggleSelect(entry.name)" />
@@ -389,6 +398,7 @@
       <div class="kb-hints">
         <span><kbd>j</kbd><kbd>k</kbd> navigate</span>
         <span><kbd>↵</kbd> open</span>
+        <span><kbd>Space</kbd> preview</span>
         <span><kbd>d</kbd> download</span>
         <span><kbd>Del</kbd> delete</span>
         <span><kbd>/</kbd> search</span>
@@ -627,16 +637,24 @@ import ProviderIcon from '../ui/ProviderIcon.vue'
 import { useConnections }   from '../../composables/useConnections.js'
 import { useToast }         from '../../composables/useToast.js'
 import { useConfirm }       from '../../composables/useConfirm.js'
+import { useBookmarks }     from '../../composables/useBookmarks.js'
+import { useActivity }      from '../../composables/useActivity.js'
+import { useDragState }     from '../../composables/useDragState.js'
 
 const props = defineProps({
   conn:        { type: Object, required: true },
   connections: { type: Array,  default: () => [] },
+  startPrefix: { type: String, default: '' },
+  paneId:      { type: String, default: 'solo' }, // 'left' | 'right' | 'solo'
 })
 defineEmits(['delete'])
 
 const { browseObjects, getDownloadURL, presignUrl, zipDownload, deleteObject, copyObject, uploadObjects, uploadObjectWithProgress, deletePrefix, transferObject, getBucketStats, getObjectMetadata, updateObjectMetadata } = useConnections()
 const toast   = useToast()
 const confirm = useConfirm()
+const { isBookmarked, toggleBookmark }            = useBookmarks()
+const { log: activityLog }                        = useActivity()
+const { dragState, startPaneDrag, clearPaneDrag } = useDragState()
 
 // ── Core state ──────────────────────────────────────────────────
 const currentPrefix  = ref('')
@@ -747,6 +765,19 @@ const cliEntry     = ref(null)
 
 // ── Zip ─────────────────────────────────────────────────────────
 const zipping = ref(false)
+
+// ── Bookmarks ───────────────────────────────────────────────────
+const isCurrentBookmarked = computed(() =>
+  isBookmarked(props.conn.provider, props.conn.id, currentPrefix.value)
+)
+function toggleCurrentBookmark() {
+  toggleBookmark(props.conn.provider, props.conn.id, props.conn.bucket, currentPrefix.value, props.conn.name)
+}
+
+// ── Cross-pane drag ─────────────────────────────────────────────
+const isCrossTarget = computed(() =>
+  dragState.value !== null && dragState.value.paneId !== props.paneId
+)
 
 // ── Keyboard navigation ─────────────────────────────────────────
 const focusedIdx = ref(-1)
@@ -892,7 +923,10 @@ async function bulkDelete() {
   selected.value = new Set()
   bulkWorking.value = false
   if (failed) toast.error(`${failed} file(s) could not be deleted.`)
-  else toast.success(`${names.length} file${names.length > 1 ? 's' : ''} deleted.`)
+  else {
+    toast.success(`${names.length} file${names.length > 1 ? 's' : ''} deleted.`)
+    activityLog('delete', `Deleted ${names.length} file${names.length > 1 ? 's' : ''}`, props.conn.provider)
+  }
   await load()
   if (statsLoaded.value) { statsLoaded.value = false; loadStats() }
 }
@@ -1043,6 +1077,7 @@ async function download(entry) {
     const a = document.createElement('a')
     a.href = url; a.download = entry.display; a.target = '_blank'; a.rel = 'noopener'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    activityLog('download', `Downloaded "${entry.display}"`, props.conn.provider)
   } catch (err) {
     toast.error('Download failed: ' + err.message)
   }
@@ -1056,6 +1091,7 @@ async function confirmDelete(entry) {
     await deleteObject(props.conn.provider, props.conn.bucket, props.conn.credentials, entry.name)
     if (previewEntry.value?.name === entry.name) closePreview()
     toast.success(`"${entry.display}" deleted.`)
+    activityLog('delete', `Deleted "${entry.display}"`, props.conn.provider)
     await load()
     if (statsLoaded.value) { statsLoaded.value = false; loadStats() }
   } catch (err) {
@@ -1072,6 +1108,7 @@ async function confirmDeleteFolder(entry) {
   try {
     const r = await deletePrefix(props.conn.provider, props.conn.bucket, props.conn.credentials, entry.name)
     toast.success(`Folder deleted (${r.deleted} file${r.deleted !== 1 ? 's' : ''} removed).`)
+    activityLog('delete', `Deleted folder "${entry.display}" (${r.deleted} files)`, props.conn.provider)
     await load()
     if (statsLoaded.value) { statsLoaded.value = false; loadStats() }
   } catch (err) {
@@ -1096,6 +1133,7 @@ async function doTransfer() {
       { provider: transferDstConn.value.provider, bucket: transferDstConn.value.bucket, credentials: transferDstConn.value.credentials, prefix: transferDstPrefix.value }
     )
     toast.success(`Transferred to ${transferDstConn.value.name}: ${r.destination}`)
+    activityLog('transfer', `Transferred "${transferEntry.value.display}" → ${transferDstConn.value.name}`, props.conn.provider)
     showTransferModal.value = false
   } catch (err) {
     toast.error('Transfer failed: ' + err.message)
@@ -1128,6 +1166,7 @@ async function handleUpload(files) {
   setTimeout(() => { uploadQueue.value = [] }, 1500)
   if (done > 0) {
     toast.success(`${done} file${done !== 1 ? 's' : ''} uploaded.`)
+    activityLog('upload', `Uploaded ${done} file${done !== 1 ? 's' : ''}`, props.conn.provider)
     await load()
     if (statsLoaded.value) { statsLoaded.value = false; loadStats() }
   }
@@ -1177,6 +1216,7 @@ async function handleFolderUpload(files) {
   setTimeout(() => { uploadQueue.value = [] }, 1500)
   if (done > 0) {
     toast.success(`${done} file${done !== 1 ? 's' : ''} uploaded.`)
+    activityLog('upload', `Uploaded ${done} file${done !== 1 ? 's' : ''} (folder)`, props.conn.provider)
     await load()
     if (statsLoaded.value) { statsLoaded.value = false; loadStats() }
   }
@@ -1189,9 +1229,46 @@ function onFolderInput(e) {
 }
 
 let dragCounter = 0
-function onDragOver(e) { if (!e.dataTransfer?.types.includes('Files')) return; dragCounter++; isDragging.value = true }
-function onDragLeave()  { if (--dragCounter <= 0) { dragCounter = 0; isDragging.value = false } }
-function onDrop(e)      { dragCounter = 0; isDragging.value = false; handleUpload(e.dataTransfer?.files) }
+function onDragOver(e) {
+  if (isCrossTarget.value) { isDragging.value = true; return }
+  if (!e.dataTransfer?.types.includes('Files')) return
+  dragCounter++; isDragging.value = true
+}
+function onDragLeave() {
+  if (isCrossTarget.value) { isDragging.value = false; return }
+  if (--dragCounter <= 0) { dragCounter = 0; isDragging.value = false }
+}
+function onDrop(e) {
+  dragCounter = 0; isDragging.value = false
+  if (dragState.value && dragState.value.paneId !== props.paneId) {
+    performCrossPaneCopy(dragState.value)
+    clearPaneDrag()
+    return
+  }
+  handleUpload(e.dataTransfer?.files)
+}
+
+function onRowDragStart(e, entry) {
+  e.stopPropagation()
+  e.dataTransfer.effectAllowed = 'copy'
+  startPaneDrag(entry, props.conn, currentPrefix.value, props.paneId)
+}
+function onRowDragEnd() { clearPaneDrag(); isDragging.value = false }
+
+async function performCrossPaneCopy(state) {
+  try {
+    const r = await transferObject(
+      { provider: state.conn.provider, bucket: state.conn.bucket, credentials: state.conn.credentials, object: state.entry.name },
+      { provider: props.conn.provider,  bucket: props.conn.bucket,  credentials: props.conn.credentials,  prefix: currentPrefix.value }
+    )
+    activityLog('transfer', `Copied "${state.entry.display}" to ${props.conn.name}`, props.conn.provider)
+    toast.success(`Copied to ${props.conn.name}: ${r.destination}`)
+    await load()
+    if (statsLoaded.value) { statsLoaded.value = false; loadStats() }
+  } catch (err) {
+    toast.error('Copy failed: ' + err.message)
+  }
+}
 
 // ── Create folder ────────────────────────────────────────────────
 async function createFolder() {
@@ -1230,6 +1307,7 @@ async function doRename() {
     await copyObject(props.conn.provider, props.conn.bucket, props.conn.credentials, renameEntry.value.name, destination, true)
     if (previewEntry.value?.name === renameEntry.value.name) closePreview()
     toast.success(`Renamed to "${target}".`)
+    activityLog('rename', `Renamed "${renameEntry.value.display}" → "${target}"`, props.conn.provider)
     showRenameModal.value = false
     await load()
   } catch (err) {
@@ -1414,23 +1492,37 @@ function onKeyDown(e) {
     else if (entry?.type === 'dir') confirmDeleteFolder(entry)
     return
   }
+
+  // Space — quick-look toggle
+  if (e.key === ' ' && !inInput && focusedIdx.value >= 0) {
+    e.preventDefault()
+    const entry = filteredEntries.value[focusedIdx.value]
+    if (!entry || entry.type === 'dir') return
+    if (previewEntry.value?.name === entry.name) closePreview()
+    else openPreview(entry)
+    return
+  }
 }
 
 // ── Watchers / lifecycle ─────────────────────────────────────────
-watch(() => props.conn, () => {
-  currentPrefix.value     = ''
-  searchQuery.value       = ''
-  selected.value          = new Set()
-  focusedIdx.value        = -1
-  stats.value             = null
-  statsLoaded.value       = false
-  previewEntry.value      = null
-  metaEntry.value         = null
-  showTransferModal.value = false
-  showPresignModal.value  = false
-  showCliModal.value      = false
-  uploadQueue.value       = []
-  load()
+watch([() => props.conn, () => props.startPrefix], ([newConn, newPrefix], [oldConn]) => {
+  if (newConn !== oldConn) {
+    currentPrefix.value     = newPrefix || ''
+    searchQuery.value       = ''
+    selected.value          = new Set()
+    focusedIdx.value        = -1
+    stats.value             = null
+    statsLoaded.value       = false
+    previewEntry.value      = null
+    metaEntry.value         = null
+    showTransferModal.value = false
+    showPresignModal.value  = false
+    showCliModal.value      = false
+    uploadQueue.value       = []
+    load()
+  } else if (newPrefix !== undefined && newPrefix !== currentPrefix.value) {
+    navigateTo(newPrefix || '')
+  }
 })
 
 watch(sentinel, val => {
@@ -1441,7 +1533,11 @@ watch(sentinel, val => {
   }
 })
 
-onMounted(() => { load(); window.addEventListener('keydown', onKeyDown) })
+onMounted(() => {
+  currentPrefix.value = props.startPrefix || ''
+  load()
+  window.addEventListener('keydown', onKeyDown)
+})
 onUnmounted(() => { window.removeEventListener('keydown', onKeyDown); observer?.disconnect() })
 
 // ── Formatters ──────────────────────────────────────────────────
