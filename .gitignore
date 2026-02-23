@@ -8,5 +8,6 @@ server/data.db
 *.log
 *.exe
 *.tmp
+*.db
 bin/
 _prompts/
