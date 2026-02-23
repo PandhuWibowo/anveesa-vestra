@@ -389,12 +389,13 @@ func ListAlibabaObjects(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// AlibabaDownloadURL generates a presigned GET URL (15 min expiry).
+// AlibabaDownloadURL generates a presigned GET URL (default 15 min; customisable via expires_in seconds).
 func AlibabaDownloadURL(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Bucket      string `json:"bucket"`
 		Credentials string `json:"credentials"`
 		Object      string `json:"object"`
+		ExpiresIn   int64  `json:"expires_in"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -405,6 +406,11 @@ func AlibabaDownloadURL(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	expiry := time.Duration(req.ExpiresIn) * time.Second
+	if expiry <= 0 {
+		expiry = 15 * time.Minute
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -420,7 +426,7 @@ func AlibabaDownloadURL(w http.ResponseWriter, r *http.Request) {
 	presigned, err := psClient.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(req.Bucket),
 		Key:    aws.String(req.Object),
-	}, func(o *s3.PresignOptions) { o.Expires = 15 * time.Minute })
+	}, func(o *s3.PresignOptions) { o.Expires = expiry })
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -698,6 +704,62 @@ func GetAlibabaMetadata(w http.ResponseWriter, r *http.Request) {
 		"updated":       updated,
 		"etag":          etag,
 	})
+}
+
+// DeletePrefixAlibaba deletes all objects under a given prefix (recursive folder delete).
+func DeletePrefixAlibaba(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Bucket      string `json:"bucket"`
+		Credentials string `json:"credentials"`
+		Prefix      string `json:"prefix"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	creds, err := ossCredsFromJSON(req.Credentials)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	client, err := ossS3Client(ctx, creds)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	deleted := 0
+	var token *string
+	for {
+		out, listErr := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(req.Bucket),
+			Prefix:            aws.String(req.Prefix),
+			ContinuationToken: token,
+		})
+		if listErr != nil {
+			http.Error(w, listErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(out.Contents) > 0 {
+			ids := make([]types.ObjectIdentifier, len(out.Contents))
+			for i, o := range out.Contents {
+				ids[i] = types.ObjectIdentifier{Key: o.Key}
+			}
+			client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+				Bucket: aws.String(req.Bucket),
+				Delete: &types.Delete{Objects: ids},
+			})
+		}
+		deleted += len(out.Contents)
+		if out.IsTruncated == nil || !*out.IsTruncated {
+			break
+		}
+		token = out.NextContinuationToken
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"deleted": deleted})
 }
 
 // UpdateAlibabaMetadata patches an OSS object's metadata via copy-to-self.

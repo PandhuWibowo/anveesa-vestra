@@ -5,12 +5,18 @@
       :connections="connections"
       :loading="loading"
       :activeConn="activeConn"
+      :activePrefix="activePrefix"
       :docsActive="mode === 'docs'"
+      :activityActive="activityOpen"
+      :splitActive="splitPane"
       @new-connection="startNew"
       @select="handleSelect"
       @edit="handleEdit"
       @delete="handleDelete"
       @docs="mode = 'docs'"
+      @activity="activityOpen = !activityOpen"
+      @split="toggleSplit"
+      @bookmark-navigate="handleBookmarkNavigate"
     />
 
     <!-- Main area -->
@@ -59,17 +65,49 @@
         @save="handleUpdate"
       />
 
-      <!-- Bucket browser -->
-      <BucketBrowser
-        v-else-if="mode === 'browse' && activeConn"
-        :conn="activeConn"
-        @delete="handleDelete(activeConn.provider, activeConn.id)"
-      />
+      <!-- Bucket browser (single or split) -->
+      <template v-else-if="mode === 'browse' && activeConn">
+        <div :class="splitPane ? 'split-pane' : 'solo-pane'">
+          <!-- Left / solo pane -->
+          <BucketBrowser
+            :conn="activeConn"
+            :connections="connections"
+            :startPrefix="activePrefix"
+            :paneId="splitPane ? 'left' : 'solo'"
+            @delete="handleDelete(activeConn.provider, activeConn.id)"
+          />
+
+          <!-- Right pane (split mode) -->
+          <template v-if="splitPane">
+            <div class="split-divider" />
+            <div v-if="!rightConn" class="split-placeholder">
+              <div class="split-placeholder__inner">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.3;margin-bottom:8px">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>
+                </svg>
+                <p>Select a connection from the sidebar</p>
+                <p style="font-size:11px;color:var(--muted);margin-top:4px">Click any connection to open it in this pane</p>
+              </div>
+            </div>
+            <BucketBrowser
+              v-else
+              :conn="rightConn"
+              :connections="connections"
+              :startPrefix="rightPrefix"
+              paneId="right"
+              @delete="handleDelete(rightConn.provider, rightConn.id)"
+            />
+          </template>
+        </div>
+      </template>
 
       <!-- Documentation -->
       <DocsViewer v-else-if="mode === 'docs'" />
 
     </main>
+
+    <!-- Activity panel (slides in over right edge) -->
+    <ActivityPanel :open="activityOpen" @close="activityOpen = false" />
 
     <!-- Global overlays -->
     <ToastContainer />
@@ -83,6 +121,7 @@ import AppSidebar        from './components/layout/AppHeader.vue'
 import AddConnectionForm from './components/connections/AddConnectionForm.vue'
 import BucketBrowser     from './components/connections/BucketBrowser.vue'
 import DocsViewer        from './components/docs/DocsViewer.vue'
+import ActivityPanel     from './components/ui/ActivityPanel.vue'
 import BaseButton        from './components/ui/BaseButton.vue'
 import ToastContainer    from './components/ui/ToastContainer.vue'
 import ConfirmModal      from './components/ui/ConfirmModal.vue'
@@ -99,7 +138,27 @@ const toast = useToast()
 
 const mode        = ref('welcome') // 'welcome' | 'form' | 'edit' | 'browse' | 'docs'
 const activeConn  = ref(null)
+const activePrefix = ref('')
 const editingConn = ref(null)
+
+// ── Activity panel ─────────────────────────────────────────────
+const activityOpen = ref(false)
+
+// ── Split (dual-pane) ──────────────────────────────────────────
+const splitPane   = ref(false)
+const rightConn   = ref(null)
+const rightPrefix = ref('')
+// Track which pane receives the next sidebar click in split mode
+const nextPane    = ref('left') // 'left' | 'right'
+
+function toggleSplit() {
+  splitPane.value = !splitPane.value
+  if (!splitPane.value) {
+    rightConn.value   = null
+    rightPrefix.value = ''
+    nextPane.value    = 'left'
+  }
+}
 
 onMounted(() => {
   fetchConnections()
@@ -117,9 +176,23 @@ function onAppKeyDown(e) {
 // ── Navigation ────────────────────────────────────────────────
 
 function handleSelect(conn) {
-  activeConn.value  = conn
-  editingConn.value = null
-  mode.value        = 'browse'
+  if (splitPane.value) {
+    if (nextPane.value === 'right') {
+      rightConn.value   = conn
+      rightPrefix.value = ''
+      nextPane.value    = 'left'
+    } else {
+      activeConn.value   = conn
+      activePrefix.value = ''
+      nextPane.value     = 'right'
+      mode.value         = 'browse'
+    }
+  } else {
+    activeConn.value   = conn
+    activePrefix.value = ''
+    editingConn.value  = null
+    mode.value         = 'browse'
+  }
   clearMessages()
 }
 
@@ -135,6 +208,26 @@ function handleEdit(conn) {
   clearMessages()
 }
 
+// ── Bookmark navigation ───────────────────────────────────────
+
+function handleBookmarkNavigate(bm) {
+  const conn = connections.value.find(
+    c => c.provider === bm.provider && String(c.id) === String(bm.id)
+  )
+  if (!conn) return
+  if (splitPane.value && nextPane.value === 'right') {
+    rightConn.value   = conn
+    rightPrefix.value = bm.prefix ?? ''
+    nextPane.value    = 'left'
+  } else {
+    activeConn.value   = conn
+    activePrefix.value = bm.prefix ?? ''
+    mode.value         = 'browse'
+    nextPane.value     = 'right'
+  }
+  clearMessages()
+}
+
 // ── Save / Update ─────────────────────────────────────────────
 
 async function handleSave(provider, form, resolve) {
@@ -144,9 +237,10 @@ async function handleSave(provider, form, resolve) {
       c => c.provider === provider && c.name === form.name
     )
     if (saved) {
-      activeConn.value  = saved
-      editingConn.value = null
-      mode.value        = 'browse'
+      activeConn.value   = saved
+      activePrefix.value = ''
+      editingConn.value  = null
+      mode.value         = 'browse'
     }
     toast.success('Connection saved.')
   }
@@ -156,7 +250,6 @@ async function handleSave(provider, form, resolve) {
 async function handleUpdate(provider, form, resolve, id) {
   const success = await updateConnection(provider, id, form)
   if (success) {
-    // Refresh activeConn if we just edited it
     if (activeConn.value?.id === id && activeConn.value?.provider === provider) {
       const updated = connections.value.find(
         c => c.provider === provider && c.id === id
@@ -174,8 +267,13 @@ async function handleUpdate(provider, form, resolve, id) {
 
 function handleDelete(provider, id) {
   if (activeConn.value?.id === id && activeConn.value?.provider === provider) {
-    activeConn.value = null
-    mode.value       = 'welcome'
+    activeConn.value   = null
+    activePrefix.value = ''
+    mode.value         = 'welcome'
+  }
+  if (rightConn.value?.id === id && rightConn.value?.provider === provider) {
+    rightConn.value   = null
+    rightPrefix.value = ''
   }
   if (editingConn.value?.id === id && editingConn.value?.provider === provider) {
     editingConn.value = null

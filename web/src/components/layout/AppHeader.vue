@@ -54,7 +54,9 @@
 
       <template v-else>
         <!-- Section label -->
-        <div v-if="filtered.length" class="section-label">Connections</div>
+        <div v-if="filtered.length" class="section-label">
+          {{ filtered.some(c => isPinned(c.provider, c.id)) ? 'Pinned · All' : 'Connections' }}
+        </div>
 
         <!-- Empty -->
         <div v-if="!filtered.length && !connections.length" class="sidebar-empty">
@@ -76,6 +78,17 @@
             <div class="conn-item__name">{{ c.name }}</div>
             <div class="conn-item__bucket">{{ c.bucket }}</div>
           </div>
+          <!-- Pin -->
+          <button
+            class="conn-item__del"
+            :class="{ 'is-pinned': isPinned(c.provider, c.id) }"
+            @click.stop="togglePin(c.provider, c.id)"
+            :title="isPinned(c.provider, c.id) ? 'Unpin' : 'Pin to top'"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" :fill="isPinned(c.provider, c.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </button>
           <!-- Edit -->
           <button
             class="conn-item__del"
@@ -99,10 +112,61 @@
           </button>
         </div>
       </template>
+
+      <!-- Bookmarks section -->
+      <template v-if="bookmarks.length">
+        <div class="section-label section-label--bookmarks">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="opacity:.7">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+          Bookmarks
+        </div>
+        <div
+          v-for="bm in bookmarks"
+          :key="bm.provider + bm.id + bm.prefix"
+          class="bookmark-item"
+          :class="{ 'is-active': activeConn?.id === bm.id && activeConn?.provider === bm.provider && activePrefix === bm.prefix }"
+          @click="$emit('bookmark-navigate', bm)"
+          :title="`${bm.connName} / ${bm.prefix || bm.bucket}`"
+        >
+          <div class="conn-badge conn-badge--xs" :class="`conn-badge--${bm.provider}`">
+            <ProviderIcon :provider="bm.provider" :size="9" />
+          </div>
+          <div class="bookmark-item__body">
+            <div class="bookmark-item__label">{{ bm.label }}</div>
+            <div class="bookmark-item__conn">{{ bm.connName }}</div>
+          </div>
+          <button
+            class="conn-item__del"
+            @click.stop="removeBookmark(bm.provider, bm.id, bm.prefix)"
+            title="Remove bookmark"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- Bottom actions -->
     <div class="sidebar__bottom">
+      <!-- Split view toggle -->
+      <button class="theme-btn" :class="{ 'is-active': splitActive }" @click="$emit('split')" title="Toggle split (dual-pane) view">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>
+        </svg>
+        Split view
+      </button>
+
+      <!-- Activity log -->
+      <button class="theme-btn" :class="{ 'is-active': activityActive }" @click="$emit('activity')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Activity
+      </button>
+
       <!-- Docs -->
       <button class="theme-btn" :class="{ 'is-active': docsActive }" @click="$emit('docs')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -133,22 +197,29 @@
 import { ref, computed } from 'vue'
 import SkeletonLoader from '../ui/SkeletonLoader.vue'
 import ProviderIcon   from '../ui/ProviderIcon.vue'
-import { useTheme }   from '../../composables/useTheme.js'
+import { useTheme }     from '../../composables/useTheme.js'
+import { usePins }      from '../../composables/usePins.js'
+import { useBookmarks } from '../../composables/useBookmarks.js'
 
 const PROV_SHORT = { gcp: 'GCS', aws: 'S3', huawei: 'OBS', alibaba: 'OSS', azure: 'Azure' }
 
 const props = defineProps({
-  connections: { type: Array, default: () => [] },
-  loading:     { type: Boolean, default: false },
-  activeConn:  { type: Object, default: null },
-  docsActive:  { type: Boolean, default: false },
+  connections:    { type: Array,   default: () => [] },
+  loading:        { type: Boolean, default: false },
+  activeConn:     { type: Object,  default: null },
+  activePrefix:   { type: String,  default: '' },
+  docsActive:     { type: Boolean, default: false },
+  activityActive: { type: Boolean, default: false },
+  splitActive:    { type: Boolean, default: false },
 })
 
-defineEmits(['new-connection', 'select', 'edit', 'delete', 'docs'])
+defineEmits(['new-connection', 'select', 'edit', 'delete', 'docs', 'activity', 'split', 'bookmark-navigate'])
 
-const { isLight, toggleTheme } = useTheme()
+const { isLight, toggleTheme }          = useTheme()
+const { isPinned, togglePin }           = usePins()
+const { bookmarks, removeBookmark }     = useBookmarks()
 
-const query          = ref('')
+const query           = ref('')
 const filterProviders = ref(new Set())
 
 const availableProviders = computed(() => {
@@ -168,6 +239,11 @@ const filtered = computed(() => {
   if (filterProviders.value.size > 0)
     list = list.filter(c => filterProviders.value.has(c.provider))
   const q = query.value.toLowerCase().trim()
-  return q ? list.filter(c => c.name.toLowerCase().includes(q) || c.bucket.toLowerCase().includes(q)) : list
+  if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || c.bucket.toLowerCase().includes(q))
+  return [...list].sort((a, b) => {
+    const pa = isPinned(a.provider, a.id) ? 0 : 1
+    const pb = isPinned(b.provider, b.id) ? 0 : 1
+    return pa - pb
+  })
 })
 </script>

@@ -139,6 +139,28 @@ export function useConnections() {
     return (await res.json()).url
   }
 
+  // presignUrl: like getDownloadURL but with a custom expiry (seconds)
+  async function presignUrl(provider, bucket, credentials, object, expiresIn) {
+    const res = await fetch(BASE[provider] + '/bucket/download', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ bucket, credentials, object, expires_in: expiresIn }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return (await res.json()).url
+  }
+
+  // zipDownload: request a zip archive of a prefix or explicit object list
+  async function zipDownload(provider, bucket, credentials, prefix, objects) {
+    const res = await fetch('/api/zip', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ provider, bucket, credentials, prefix: prefix ?? '', objects: objects ?? [] }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.blob()
+  }
+
   async function deleteObject(provider, bucket, credentials, object) {
     const res = await fetch(BASE[provider] + '/bucket/delete', {
       method:  'POST',
@@ -168,6 +190,58 @@ export function useConnections() {
         if (!r.ok) return r.text().then(t => { throw new Error(t) })
       })
     }))
+  }
+
+  async function deletePrefix(provider, bucket, credentials, prefix) {
+    const res = await fetch(BASE[provider] + '/bucket/delete-prefix', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ bucket, credentials, prefix }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json() // { deleted: N }
+  }
+
+  async function transferObject(src, dst) {
+    // src: { provider, bucket, credentials, object }
+    // dst: { provider, bucket, credentials, prefix }
+    const res = await fetch('/api/transfer', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        src_provider:    src.provider,
+        src_bucket:      src.bucket,
+        src_credentials: src.credentials,
+        src_object:      src.object,
+        dst_provider:    dst.provider,
+        dst_bucket:      dst.bucket,
+        dst_credentials: dst.credentials,
+        dst_prefix:      dst.prefix,
+      }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json() // { destination: "path/file.txt" }
+  }
+
+  function uploadObjectWithProgress(provider, bucket, credentials, prefix, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const form = new FormData()
+      form.append('bucket',      bucket)
+      form.append('credentials', credentials)
+      form.append('prefix',      prefix)
+      form.append('file',        file)
+      const xhr = new XMLHttpRequest()
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) onProgress?.(e.loaded / e.total)
+      })
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve()
+        else reject(new Error(xhr.responseText || `HTTP ${xhr.status}`))
+      })
+      xhr.addEventListener('error', () => reject(new Error('Network error')))
+      xhr.open('POST', BASE[provider] + '/bucket/upload')
+      xhr.send(form)
+    })
   }
 
   async function getBucketStats(provider, bucket, credentials) {
@@ -218,8 +292,10 @@ export function useConnections() {
     connections, loading, testing, saving, error, notice,
     fetchConnections, testConnection, saveConnection, updateConnection,
     removeConnection, clearMessages,
-    browseObjects, getDownloadURL, deleteObject, copyObject,
-    uploadObjects, getBucketStats, listObjects,
+    browseObjects, getDownloadURL, presignUrl, zipDownload, deleteObject, copyObject,
+    uploadObjects, uploadObjectWithProgress,
+    deletePrefix, transferObject,
+    getBucketStats, listObjects,
     getObjectMetadata, updateObjectMetadata,
   }
 }

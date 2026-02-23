@@ -1,0 +1,233 @@
+package handlers
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"path"
+	"strings"
+	"time"
+
+	awslib "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
+)
+
+// TransferRequest describes a cross-connection object transfer.
+type TransferRequest struct {
+	SrcProvider    string `json:"src_provider"`
+	SrcBucket      string `json:"src_bucket"`
+	SrcCredentials string `json:"src_credentials"`
+	SrcObject      string `json:"src_object"`
+	DstProvider    string `json:"dst_provider"`
+	DstBucket      string `json:"dst_bucket"`
+	DstCredentials string `json:"dst_credentials"`
+	DstPrefix      string `json:"dst_prefix"`
+}
+
+// TransferObject downloads an object from the source provider and uploads it to the destination.
+func TransferObject(w http.ResponseWriter, r *http.Request) {
+	var req TransferRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	// Download from source
+	data, contentType, err := downloadObjectData(ctx, req.SrcProvider, req.SrcBucket, req.SrcCredentials, req.SrcObject)
+	if err != nil {
+		http.Error(w, "download failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build destination key: prefix/filename
+	filename := path.Base(req.SrcObject)
+	prefix := strings.TrimSuffix(req.DstPrefix, "/")
+	var destKey string
+	if prefix == "" {
+		destKey = filename
+	} else {
+		destKey = prefix + "/" + filename
+	}
+
+	// Upload to destination
+	if err := uploadObjectData(ctx, req.DstProvider, req.DstBucket, req.DstCredentials, destKey, data, contentType); err != nil {
+		http.Error(w, "upload failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"destination": destKey})
+}
+
+// ── Internal download helpers ─────────────────────────────────────────────────
+
+func downloadObjectData(ctx context.Context, provider, bucket, credentials, object string) ([]byte, string, error) {
+	switch provider {
+	case "aws":
+		return downloadS3(ctx, bucket, credentials, object, awsS3Client)
+	case "alibaba":
+		return downloadS3(ctx, bucket, credentials, object, ossS3Client)
+	case "huawei":
+		return downloadS3(ctx, bucket, credentials, object, obsS3Client)
+	case "gcp":
+		return downloadGCS(ctx, bucket, credentials, object)
+	case "azure":
+		return downloadAzureBlob(ctx, bucket, credentials, object)
+	default:
+		return nil, "", fmt.Errorf("unsupported provider: %s", provider)
+	}
+}
+
+func downloadS3(ctx context.Context, bucket, credentialsJSON, object string, clientFn func(context.Context, map[string]string) (*s3.Client, error)) ([]byte, string, error) {
+	creds, err := awsCredsFromJSON(credentialsJSON)
+	if err != nil {
+		return nil, "", err
+	}
+	client, err := clientFn(ctx, creds)
+	if err != nil {
+		return nil, "", err
+	}
+	out, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: awslib.String(bucket),
+		Key:    awslib.String(object),
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	defer out.Body.Close()
+	data, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	ct := "application/octet-stream"
+	if out.ContentType != nil && *out.ContentType != "" {
+		ct = *out.ContentType
+	}
+	return data, ct, nil
+}
+
+func downloadGCS(ctx context.Context, bucket, credentials, object string) ([]byte, string, error) {
+	client, err := gcpClient(ctx, credentials)
+	if err != nil {
+		return nil, "", err
+	}
+	defer client.Close()
+
+	obj := client.Bucket(bucket).Object(object)
+	ct := "application/octet-stream"
+	if attrs, attrErr := obj.Attrs(ctx); attrErr == nil && attrs.ContentType != "" {
+		ct = attrs.ContentType
+	}
+	rc, err := obj.NewReader(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	return data, ct, err
+}
+
+func downloadAzureBlob(ctx context.Context, container, credentials, object string) ([]byte, string, error) {
+	accountName, accountKey, err := azureCredsFromJSON(credentials)
+	if err != nil {
+		return nil, "", err
+	}
+	containerClient, _, err := azureContainerClient(accountName, accountKey, container)
+	if err != nil {
+		return nil, "", err
+	}
+	blobClient := containerClient.NewBlobClient(object)
+
+	ct := "application/octet-stream"
+	if props, propErr := blobClient.GetProperties(ctx, nil); propErr == nil && props.ContentType != nil && *props.ContentType != "" {
+		ct = *props.ContentType
+	}
+
+	resp, err := blobClient.DownloadStream(ctx, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	return data, ct, err
+}
+
+// ── Internal upload helpers ───────────────────────────────────────────────────
+
+func uploadObjectData(ctx context.Context, provider, bucket, credentials, destKey string, data []byte, contentType string) error {
+	switch provider {
+	case "aws":
+		return uploadS3(ctx, bucket, credentials, destKey, data, contentType, awsS3Client)
+	case "alibaba":
+		return uploadS3(ctx, bucket, credentials, destKey, data, contentType, ossS3Client)
+	case "huawei":
+		return uploadS3(ctx, bucket, credentials, destKey, data, contentType, obsS3Client)
+	case "gcp":
+		return uploadGCS(ctx, bucket, credentials, destKey, data, contentType)
+	case "azure":
+		return uploadAzureBlob(ctx, bucket, credentials, destKey, data, contentType)
+	default:
+		return fmt.Errorf("unsupported provider: %s", provider)
+	}
+}
+
+func uploadS3(ctx context.Context, bucket, credentialsJSON, key string, data []byte, contentType string, clientFn func(context.Context, map[string]string) (*s3.Client, error)) error {
+	creds, err := awsCredsFromJSON(credentialsJSON)
+	if err != nil {
+		return err
+	}
+	client, err := clientFn(ctx, creds)
+	if err != nil {
+		return err
+	}
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        awslib.String(bucket),
+		Key:           awslib.String(key),
+		Body:          bytes.NewReader(data),
+		ContentLength: awslib.Int64(int64(len(data))),
+		ContentType:   awslib.String(contentType),
+	})
+	return err
+}
+
+func uploadGCS(ctx context.Context, bucket, credentials, key string, data []byte, contentType string) error {
+	client, err := gcpClient(ctx, credentials)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	wc := client.Bucket(bucket).Object(key).NewWriter(ctx)
+	wc.ContentType = contentType
+	if _, err := io.Copy(wc, bytes.NewReader(data)); err != nil {
+		wc.Close()
+		return err
+	}
+	return wc.Close()
+}
+
+func uploadAzureBlob(ctx context.Context, container, credentials, key string, data []byte, contentType string) error {
+	accountName, accountKey, err := azureCredsFromJSON(credentials)
+	if err != nil {
+		return err
+	}
+	containerClient, _, err := azureContainerClient(accountName, accountKey, container)
+	if err != nil {
+		return err
+	}
+	blobClient := containerClient.NewBlockBlobClient(key)
+	_, err = blobClient.UploadBuffer(ctx, data, &blockblob.UploadBufferOptions{
+		HTTPHeaders: &blob.HTTPHeaders{
+			BlobContentType: strPtr(contentType),
+		},
+	})
+	return err
+}
