@@ -15,6 +15,20 @@ type Config struct {
 	JWTSecret     string
 	AuthEnabled   bool
 	JWTExpiry     time.Duration
+
+	// OAuth2
+	GoogleClientID     string
+	GoogleClientSecret string
+	GitHubClientID     string
+	GitHubClientSecret string
+	OAuthRedirectBase  string
+
+	// SMTP (for notifications and shared link delivery)
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -27,6 +41,18 @@ func Load() *Config {
 		JWTSecret:     envOr("JWT_SECRET", "change-me-in-production"),
 		AuthEnabled:   envBool("AUTH_ENABLED", true),
 		JWTExpiry:     envDuration("JWT_EXPIRY", 24*time.Hour),
+
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+		OAuthRedirectBase:  envOr("OAUTH_REDIRECT_BASE", "http://localhost:5173"),
+
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     envOr("SMTP_PORT", "587"),
+		SMTPUsername: os.Getenv("SMTP_USERNAME"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:     os.Getenv("SMTP_FROM"),
 	}
 	return cfg
 }

@@ -163,6 +163,16 @@ func createTables() error {
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL
 		)`,
+		// ── Notification channels ───────────────────────────────────
+		`CREATE TABLE IF NOT EXISTS notification_channels (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			name       TEXT NOT NULL,
+			type       TEXT NOT NULL,
+			config     TEXT NOT NULL,
+			events     TEXT NOT NULL,
+			active     INTEGER DEFAULT 1,
+			created_at DATETIME NOT NULL
+		)`,
 		// ── Indexes ──────────────────────────────────────────────────
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id)`,

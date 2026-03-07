@@ -450,24 +450,78 @@
         <span><kbd>Del</kbd> delete</span>
         <span><kbd>/</kbd> search</span>
         <span><kbd>r</kbd> refresh</span>
+        <span><kbd>f</kbd> fullscreen</span>
         <span><kbd>⌫</kbd> up</span>
       </div>
     </div>
 
     <!-- ── Preview panel ────────────────────────────────────────── -->
     <transition name="slide-right">
-      <div v-if="previewEntry && !metaEntry" class="preview-panel">
+      <div v-if="previewEntry && !metaEntry" class="preview-panel" :class="{ 'preview-panel--fullscreen': previewFullscreen }">
         <div class="preview-hd">
           <span class="preview-hd__name">{{ previewEntry.display }}</span>
-          <button class="preview-close" @click="closePreview">×</button>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="preview-hd-btn" @click="togglePreviewFullscreen" :title="previewFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'">
+              <svg v-if="!previewFullscreen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+              <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
+            <button class="preview-close" @click="closePreview">×</button>
+          </div>
         </div>
-        <div class="preview-body">
+
+        <!-- Preview toolbar -->
+        <div class="preview-toolbar" v-if="!previewLoading">
+          <!-- Image controls -->
+          <template v-if="isImage(previewEntry) && previewUrl && !previewLoadError">
+            <button class="preview-tb-btn" @click="previewDoZoomOut" title="Zoom out">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <span class="preview-tb-zoom">{{ previewZoomIsFit ? 'Fit' : Math.round(previewZoom * 100) + '%' }}</span>
+            <button class="preview-tb-btn" @click="previewDoZoomIn" title="Zoom in">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <div class="preview-tb-sep"></div>
+            <button class="preview-tb-btn" :class="{ active: previewZoomIsFit }" @click="previewDoZoomFit" title="Fit to panel">Fit</button>
+            <button class="preview-tb-btn" @click="previewDoZoomReset" title="Actual size (1:1)">1:1</button>
+          </template>
+
+          <!-- Text/Code controls -->
+          <template v-if="(isCode(previewEntry) || isConfig(previewEntry) || isPlainText(previewEntry) || isJson(previewEntry)) && previewContent">
+            <button class="preview-tb-btn" :class="{ active: previewShowLineNumbers }" @click="previewShowLineNumbers = !previewShowLineNumbers" title="Line numbers">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/>
+                <line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/>
+              </svg>
+            </button>
+            <button class="preview-tb-btn" :class="{ active: previewWordWrap }" @click="previewWordWrap = !previewWordWrap" title="Word wrap">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"/><path d="M3 12h15a3 3 0 1 1 0 6h-4"/><polyline points="16 16 14 18 16 20"/><path d="M3 18h7"/>
+              </svg>
+            </button>
+            <span class="preview-tb-info" v-if="previewTextAllLines.length">{{ previewLineProgress }}</span>
+            <div class="preview-tb-spacer"></div>
+            <button v-if="previewHasMoreLines" class="preview-tb-btn preview-tb-btn--accent" @click="loadAllPreviewLines" title="Load all remaining lines">Load all</button>
+          </template>
+        </div>
+
+        <div class="preview-body" ref="previewBodyRef">
           <div v-if="previewLoading" class="preview-unsupported">
             <div class="base-btn__spinner" style="width:20px;height:20px;border-width:2px"></div>
           </div>
 
           <!-- Image -->
-          <img v-else-if="isImage(previewEntry) && previewUrl" :src="previewUrl" class="preview-img" alt="File preview" @error="previewLoadError=true" />
+          <div v-else-if="isImage(previewEntry) && previewUrl" class="preview-img-wrap" @wheel="onPreviewImageWheel">
+            <img :src="previewUrl"
+                 class="preview-img"
+                 :class="{ 'preview-img--fit': previewZoomIsFit }"
+                 :style="!previewZoomIsFit ? `transform:scale(${previewZoom});transform-origin:top left` : ''"
+                 alt="File preview"
+                 @error="previewLoadError=true" />
+          </div>
 
           <!-- Video -->
           <video v-else-if="isVideo(previewEntry) && previewUrl"
@@ -492,7 +546,16 @@
           <!-- JSON (formatted) -->
           <div v-else-if="isJson(previewEntry) && previewJsonFormatted" class="preview-code-wrap">
             <div class="preview-code-lang">JSON</div>
-            <pre class="preview-text preview-text--code">{{ previewJsonFormatted }}</pre>
+            <div class="preview-code-body" :class="{ 'preview-code-body--nowrap': !previewWordWrap }" @scroll="onPreviewCodeScroll">
+              <pre v-if="previewShowLineNumbers && previewTextAllLines.length" class="preview-line-gutter" aria-hidden="true">{{ previewLineNumbersText }}</pre>
+              <pre class="preview-text preview-text--code">{{ previewVisibleText || previewJsonFormatted }}</pre>
+            </div>
+            <div v-if="previewHasMoreLines" class="preview-load-more-bar">
+              <button class="preview-load-more-btn" @click="loadMorePreviewLines">
+                Load {{ Math.min(PREVIEW_LINE_CHUNK, previewTextAllLines.length - previewVisibleLineCount).toLocaleString() }} more lines
+              </button>
+              <span class="preview-load-more-info">{{ previewLineProgress }}</span>
+            </div>
           </div>
 
           <!-- CSV / TSV (table) -->
@@ -512,13 +575,22 @@
                 </tbody>
               </table>
             </div>
-            <div v-if="previewCsvRows.length >= 200" class="preview-truncated">Showing first 200 rows</div>
+            <div v-if="previewCsvRows.length >= 2000" class="preview-truncated">Showing first 2,000 rows</div>
           </div>
 
           <!-- Code / Config / Plain text (with language label) -->
           <div v-else-if="isTextPreviewable(previewEntry) && previewContent" class="preview-code-wrap">
             <div class="preview-code-lang">{{ previewLang }}</div>
-            <pre class="preview-text preview-text--code">{{ previewContent }}</pre>
+            <div class="preview-code-body" :class="{ 'preview-code-body--nowrap': !previewWordWrap }" @scroll="onPreviewCodeScroll">
+              <pre v-if="previewShowLineNumbers && previewTextAllLines.length" class="preview-line-gutter" aria-hidden="true">{{ previewLineNumbersText }}</pre>
+              <pre class="preview-text preview-text--code">{{ previewTextAllLines.length ? previewVisibleText : previewContent }}</pre>
+            </div>
+            <div v-if="previewHasMoreLines" class="preview-load-more-bar">
+              <button class="preview-load-more-btn" @click="loadMorePreviewLines">
+                Load {{ Math.min(PREVIEW_LINE_CHUNK, previewTextAllLines.length - previewVisibleLineCount).toLocaleString() }} more lines
+              </button>
+              <span class="preview-load-more-info">{{ previewLineProgress }}</span>
+            </div>
           </div>
 
           <!-- Excel / Spreadsheet -->
@@ -550,8 +622,8 @@
                 </tbody>
               </table>
             </div>
-            <div v-if="(previewExcelSheets[previewExcelActive]?.totalRows ?? 0) > 500" class="preview-truncated">
-              Showing first 500 of {{ previewExcelSheets[previewExcelActive].totalRows.toLocaleString() }} rows
+            <div v-if="(previewExcelSheets[previewExcelActive]?.totalRows ?? 0) > 2000" class="preview-truncated">
+              Showing first 2,000 of {{ previewExcelSheets[previewExcelActive].totalRows.toLocaleString() }} rows
             </div>
           </div>
 
@@ -887,6 +959,17 @@ const previewContent  = ref('')
 const previewHtml     = ref('')
 const previewLoading  = ref(false)
 const previewLoadError = ref(false)
+
+const previewFullscreen = ref(false)
+const previewZoom = ref(1)
+const previewZoomIsFit = ref(true)
+const previewWordWrap = ref(true)
+const previewShowLineNumbers = ref(true)
+const previewVisibleLineCount = ref(500)
+const PREVIEW_LINE_CHUNK = 500
+const PREVIEW_MAX_BYTES = 5_000_000
+const previewTextAllLines = ref([])
+const previewBodyRef = ref(null)
 
 // ── Transfer modal ───────────────────────────────────────────────
 const showTransferModal = ref(false)
@@ -1531,6 +1614,29 @@ const previewExcelSheets   = ref([])       // [{ name, headers, rows }]
 const previewExcelActive   = ref(0)        // active sheet tab index
 const previewWordHtml      = ref('')       // rendered Word docx HTML
 
+const previewVisibleText = computed(() => {
+  if (!previewTextAllLines.value.length) return previewContent.value
+  return previewTextAllLines.value.slice(0, previewVisibleLineCount.value).join('\n')
+})
+
+const previewHasMoreLines = computed(() =>
+  previewTextAllLines.value.length > previewVisibleLineCount.value
+)
+
+const previewLineProgress = computed(() => {
+  if (!previewTextAllLines.value.length) return ''
+  const shown = Math.min(previewVisibleLineCount.value, previewTextAllLines.value.length)
+  return `${shown.toLocaleString()} / ${previewTextAllLines.value.length.toLocaleString()} lines`
+})
+
+const previewLineNumbersText = computed(() => {
+  const count = Math.min(previewVisibleLineCount.value, previewTextAllLines.value.length)
+  if (count === 0) return ''
+  const arr = []
+  for (let i = 1; i <= count; i++) arr.push(i)
+  return arr.join('\n')
+})
+
 async function openPreview(entry) {
   metaEntry.value            = null
   previewEntry.value         = entry
@@ -1542,9 +1648,13 @@ async function openPreview(entry) {
   previewLang.value          = ''
   previewExcelSheets.value   = []
   previewExcelActive.value   = 0
-  previewWordHtml.value      = ''
-  previewLoadError.value     = false
-  previewLoading.value       = true
+  previewWordHtml.value           = ''
+  previewLoadError.value          = false
+  previewTextAllLines.value       = []
+  previewVisibleLineCount.value   = PREVIEW_LINE_CHUNK
+  previewZoom.value               = 1
+  previewZoomIsFit.value          = true
+  previewLoading.value            = true
   try {
     // For media types (img/video/audio/pdf), we use presigned URLs since
     // HTML media elements aren't subject to CORS.
@@ -1562,7 +1672,7 @@ async function openPreview(entry) {
       await loadWordPreview(entry)
     } else if (isTextPreviewable(entry)) {
       const res = await proxyDownload(props.conn.provider, props.conn.bucket, props.conn.credentials, entry.name)
-      const text = (await res.text()).slice(0, 100_000)
+      const text = (await res.text()).slice(0, PREVIEW_MAX_BYTES)
       previewContent.value = text
       previewLang.value = languageLabel(entry)
 
@@ -1570,12 +1680,19 @@ async function openPreview(entry) {
         previewHtml.value = DOMPurify.sanitize(marked.parse(text))
       } else if (isJson(entry)) {
         try {
-          previewJsonFormatted.value = JSON.stringify(JSON.parse(text), null, 2)
+          const formatted = JSON.stringify(JSON.parse(text), null, 2)
+          previewJsonFormatted.value = formatted
+          previewTextAllLines.value = formatted.split('\n')
         } catch {
           previewJsonFormatted.value = text
+          previewTextAllLines.value = text.split('\n')
         }
+        previewVisibleLineCount.value = PREVIEW_LINE_CHUNK
       } else if (isCsv(entry)) {
         parseCsvPreview(text, entry)
+      } else {
+        previewTextAllLines.value = text.split('\n')
+        previewVisibleLineCount.value = PREVIEW_LINE_CHUNK
       }
     }
   } catch { previewLoadError.value = true }
@@ -1590,7 +1707,7 @@ async function loadExcelPreview(entry) {
     const sheet = wb.Sheets[name]
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
     const headers = json[0] || []
-    const rows = json.slice(1, 501)
+    const rows = json.slice(1, 2001)
     return { name, headers, rows, totalRows: json.length - 1 }
   })
   previewLang.value = languageLabel(previewEntry.value)
@@ -1606,7 +1723,7 @@ async function loadWordPreview(entry) {
 
 function parseCsvPreview(text, entry) {
   const sep = getExt(entry) === 'tsv' ? '\t' : ','
-  const lines = text.split('\n').filter(l => l.trim()).slice(0, 200)
+  const lines = text.split('\n').filter(l => l.trim()).slice(0, 2000)
   previewCsvRows.value = lines.map(line => {
     const cells = []
     let current = '', inQuotes = false
@@ -1628,16 +1745,73 @@ function getExt(entry) {
 }
 
 function closePreview() {
-  previewEntry.value          = null
-  previewUrl.value            = ''
-  previewContent.value        = ''
-  previewHtml.value           = ''
-  previewJsonFormatted.value  = ''
-  previewCsvRows.value        = []
-  previewLang.value           = ''
-  previewExcelSheets.value    = []
-  previewExcelActive.value    = 0
-  previewWordHtml.value       = ''
+  previewEntry.value              = null
+  previewUrl.value                = ''
+  previewContent.value            = ''
+  previewHtml.value               = ''
+  previewJsonFormatted.value      = ''
+  previewCsvRows.value            = []
+  previewLang.value               = ''
+  previewExcelSheets.value        = []
+  previewExcelActive.value        = 0
+  previewWordHtml.value           = ''
+  previewFullscreen.value         = false
+  previewZoom.value               = 1
+  previewZoomIsFit.value          = true
+  previewTextAllLines.value       = []
+  previewVisibleLineCount.value   = PREVIEW_LINE_CHUNK
+}
+
+function togglePreviewFullscreen() {
+  previewFullscreen.value = !previewFullscreen.value
+}
+
+function loadMorePreviewLines() {
+  if (previewVisibleLineCount.value < previewTextAllLines.value.length) {
+    previewVisibleLineCount.value = Math.min(
+      previewVisibleLineCount.value + PREVIEW_LINE_CHUNK,
+      previewTextAllLines.value.length
+    )
+  }
+}
+
+function loadAllPreviewLines() {
+  previewVisibleLineCount.value = previewTextAllLines.value.length
+}
+
+function onPreviewCodeScroll(e) {
+  const el = e.target
+  if (previewTextAllLines.value.length && el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
+    loadMorePreviewLines()
+  }
+}
+
+function previewDoZoomIn() {
+  previewZoomIsFit.value = false
+  previewZoom.value = Math.min(+(previewZoom.value + 0.25).toFixed(2), 5)
+}
+
+function previewDoZoomOut() {
+  previewZoomIsFit.value = false
+  previewZoom.value = Math.max(+(previewZoom.value - 0.25).toFixed(2), 0.1)
+}
+
+function previewDoZoomReset() {
+  previewZoomIsFit.value = false
+  previewZoom.value = 1
+}
+
+function previewDoZoomFit() {
+  previewZoomIsFit.value = true
+  previewZoom.value = 1
+}
+
+function onPreviewImageWheel(e) {
+  if (!e.ctrlKey && !e.metaKey) return
+  e.preventDefault()
+  previewZoomIsFit.value = false
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  previewZoom.value = Math.max(0.1, Math.min(5, +(previewZoom.value + delta).toFixed(2)))
 }
 
 // ── Metadata editor ─────────────────────────────────────────────
@@ -1699,8 +1873,15 @@ function onKeyDown(e) {
   // Refresh
   if ((e.key === 'r' || e.key === 'R') && !inInput && !e.metaKey && !e.ctrlKey) { refresh(); return }
 
+  // f — toggle preview fullscreen
+  if ((e.key === 'f' || e.key === 'F') && !inInput && !e.metaKey && !e.ctrlKey && previewEntry.value) {
+    togglePreviewFullscreen()
+    return
+  }
+
   // Close / collapse
   if (e.key === 'Escape') {
+    if (previewFullscreen.value) { previewFullscreen.value = false; return }
     if (metaEntry.value)    { metaEntry.value = null; return }
     if (previewEntry.value) { closePreview(); return }
     if (searchQuery.value)  { searchQuery.value = ''; return }

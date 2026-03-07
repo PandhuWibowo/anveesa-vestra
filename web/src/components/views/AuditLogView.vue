@@ -23,43 +23,44 @@
     </div>
 
     <div v-else class="view-panel__body">
-      <div v-if="!entries.length" class="empty-state" style="padding:40px 16px">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-        </svg>
-        No audit entries yet
-      </div>
-
-      <table v-else class="file-table">
-        <thead>
-          <tr>
-            <th style="width:60px">Action</th>
-            <th>Provider</th>
-            <th>Object</th>
-            <th>Details</th>
-            <th>IP</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="e in entries" :key="e.id">
-            <td>
-              <span class="audit-action" :class="`audit-action--${e.action}`">{{ e.action }}</span>
-            </td>
-            <td>
-              <span v-if="e.provider" class="base-badge" :class="`base-badge--${e.provider}`">{{ e.provider.toUpperCase() }}</span>
-              <span v-else class="file-type">—</span>
-            </td>
-            <td>
-              <span class="file-name" style="font-size:11px" v-if="e.object">{{ e.object }}</span>
-              <span v-else class="file-type">—</span>
-            </td>
-            <td class="file-type" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ e.details || '—' }}</td>
-            <td class="file-type" style="font-family:var(--mono);font-size:11px">{{ e.ip || '—' }}</td>
-            <td class="file-date">{{ formatDate(e.created_at) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <DragTable
+        :columns="columns"
+        :rows="entries"
+        row-key="id"
+        :resizable-columns="true"
+        :reorderable-columns="true"
+        :column-toggle="true"
+        striped
+      >
+        <template #cell-action="{ row }">
+          <span class="audit-action" :class="`audit-action--${row.action}`">{{ row.action }}</span>
+        </template>
+        <template #cell-provider="{ row }">
+          <span v-if="row.provider" class="base-badge" :class="`base-badge--${row.provider}`">{{ row.provider.toUpperCase() }}</span>
+          <span v-else class="file-type">—</span>
+        </template>
+        <template #cell-object="{ row }">
+          <span class="file-name" style="font-size:11px" v-if="row.object">{{ row.object }}</span>
+          <span v-else class="file-type">—</span>
+        </template>
+        <template #cell-details="{ row }">
+          <span class="file-type" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;display:block">{{ row.details || '—' }}</span>
+        </template>
+        <template #cell-ip="{ row }">
+          <span class="file-type" style="font-family:var(--mono);font-size:11px">{{ row.ip || '—' }}</span>
+        </template>
+        <template #cell-created_at="{ row }">
+          <span class="file-date">{{ formatDate(row.created_at) }}</span>
+        </template>
+        <template #empty>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            No audit entries yet
+          </div>
+        </template>
+      </DragTable>
 
       <div v-if="entries.length >= 100" class="view-panel__footer">
         <button class="base-btn base-btn--ghost" @click="handleLoadMore" :disabled="loadingMore">
@@ -73,16 +74,23 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import DragTable from '../ui/DragTable.vue'
 import { useAudit } from '../../composables/useAudit.js'
 
 const { entries, loading, error, fetchAudit, loadMore } = useAudit()
 const loadingMore = ref(false)
 
-onMounted(() => fetchAudit())
+const columns = [
+  { key: 'action', label: 'Action', sortable: true, width: 90 },
+  { key: 'provider', label: 'Provider', sortable: true, width: 90 },
+  { key: 'object', label: 'Object', sortable: true },
+  { key: 'details', label: 'Details', width: 200 },
+  { key: 'ip', label: 'IP', width: 120 },
+  { key: 'created_at', label: 'Time', sortable: true, width: 170 },
+]
 
-function refresh() {
-  fetchAudit()
-}
+onMounted(() => fetchAudit())
+function refresh() { fetchAudit() }
 
 async function handleLoadMore() {
   loadingMore.value = true

@@ -130,6 +130,15 @@
       <!-- Webhooks -->
       <WebhooksView v-else-if="mode === 'webhooks'" />
 
+      <!-- Notifications -->
+      <NotificationsView v-else-if="mode === 'notifications'" />
+
+      <!-- Sync -->
+      <SyncView v-else-if="mode === 'sync'" />
+
+      <!-- Users -->
+      <UsersView v-else-if="mode === 'users'" />
+
     </main>
 
     <!-- Activity panel (slides in over right edge) -->
@@ -143,7 +152,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AppSidebar        from './components/layout/AppHeader.vue'
 import AddConnectionForm from './components/connections/AddConnectionForm.vue'
 import BucketBrowser     from './components/connections/BucketBrowser.vue'
@@ -159,6 +168,9 @@ import SharedLinksView   from './components/views/SharedLinksView.vue'
 import AuditLogView      from './components/views/AuditLogView.vue'
 import JobsView          from './components/views/JobsView.vue'
 import WebhooksView      from './components/views/WebhooksView.vue'
+import NotificationsView from './components/views/NotificationsView.vue'
+import SyncView          from './components/views/SyncView.vue'
+import UsersView         from './components/views/UsersView.vue'
 import ShortcutModal     from './components/ui/ShortcutModal.vue'
 import { useConnections } from './composables/useConnections.js'
 import { useAuth }        from './composables/useAuth.js'
@@ -183,6 +195,39 @@ const activeConn  = ref(null)
 const activePrefix = ref('')
 const editingConn = ref(null)
 
+function saveNavState() {
+  const state = { mode: mode.value, prefix: activePrefix.value }
+  if (activeConn.value) {
+    state.connProvider = activeConn.value.provider
+    state.connId = activeConn.value.id
+  }
+  localStorage.setItem('anveesa-nav', JSON.stringify(state))
+}
+
+function restoreNavState() {
+  try {
+    const raw = localStorage.getItem('anveesa-nav')
+    if (!raw) return
+    const state = JSON.parse(raw)
+    const restorable = ['browse', 'docs', 'dashboard', 'search', 'shared', 'audit', 'jobs', 'webhooks', 'notifications', 'sync', 'users']
+    if (!restorable.includes(state.mode)) return
+    if (state.mode === 'browse' && state.connProvider != null && state.connId != null) {
+      const conn = connections.value.find(
+        c => c.provider === state.connProvider && c.id === state.connId
+      )
+      if (conn) {
+        activeConn.value = conn
+        activePrefix.value = state.prefix || ''
+        mode.value = 'browse'
+        return
+      }
+    }
+    if (state.mode !== 'browse') {
+      mode.value = state.mode
+    }
+  } catch { /* ignore corrupt data */ }
+}
+
 // ── Activity panel ─────────────────────────────────────────────
 const activityOpen = ref(false)
 
@@ -203,20 +248,35 @@ function toggleSplit() {
 }
 
 onMounted(async () => {
+  // Handle OAuth redirect token
+  const urlParams = new URLSearchParams(window.location.search)
+  const oauthToken = urlParams.get('oauth_token')
+  if (oauthToken) {
+    localStorage.setItem('auth_token', oauthToken)
+    token.value = oauthToken
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
   await checkSetup()
   if (authEnabled.value && token.value) {
     await fetchMe()
   }
   if (!authEnabled.value || isAuthenticated.value) {
-    fetchConnections()
+    await fetchConnections()
+    restoreNavState()
   }
   window.addEventListener('keydown', onAppKeyDown)
 })
 onUnmounted(() => window.removeEventListener('keydown', onAppKeyDown))
 
-watch(isAuthenticated, (authed) => {
-  if (authed) fetchConnections()
+watch(isAuthenticated, async (authed) => {
+  if (authed) {
+    await fetchConnections()
+    restoreNavState()
+  }
 })
+
+watch([mode, activeConn, activePrefix], () => saveNavState())
 
 function onAppKeyDown(e) {
   const inInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)

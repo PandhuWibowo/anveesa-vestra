@@ -13,7 +13,7 @@ export function useWebhooks() {
     try {
       const res = await fetch('/api/webhooks', { headers: authHeaders() })
       if (!res.ok) throw new Error(await res.text())
-      webhooks.value = await res.json()
+      webhooks.value = (await res.json()) ?? []
     } catch (err) {
       error.value = err.message
     } finally {

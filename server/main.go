@@ -23,17 +23,27 @@ func main() {
 	}
 
 	go handlers.StartJobWorker()
+	go handlers.StartSyncScheduler()
 
 	cors := func(next http.HandlerFunc) http.HandlerFunc {
 		return middleware.CORS(cfg.CORSOrigin, next)
 	}
 	rate := middleware.RateLimit(20, 60)
 	auth := middleware.RequireAuth(cfg.JWTSecret)
+	adminOnly := middleware.RequireRole("admin")
 
 	protect := func(h http.HandlerFunc) http.HandlerFunc {
 		wrapped := h
 		if cfg.AuthEnabled {
 			wrapped = auth(wrapped)
+		}
+		return cors(rate(wrapped))
+	}
+
+	admin := func(h http.HandlerFunc) http.HandlerFunc {
+		wrapped := h
+		if cfg.AuthEnabled {
+			wrapped = adminOnly(auth(wrapped))
 		}
 		return cors(rate(wrapped))
 	}
@@ -186,6 +196,27 @@ func main() {
 	// ── Webhooks ─────────────────────────────────────────────────
 	mux.HandleFunc("/api/webhooks", protect(handlers.WebhooksRoute))
 	mux.HandleFunc("/api/webhooks/", protect(handlers.DeleteWebhook))
+
+	// ── Notifications ───────────────────────────────────────────
+	mux.HandleFunc("/api/notifications", admin(handlers.NotificationChannelsRoute))
+	mux.HandleFunc("/api/notifications/test", admin(handlers.TestNotificationChannel))
+	mux.HandleFunc("/api/notifications/", admin(handlers.DeleteNotificationChannel))
+
+	// ── Sync jobs ───────────────────────────────────────────────
+	mux.HandleFunc("/api/sync", protect(handlers.SyncJobsRoute))
+	mux.HandleFunc("/api/sync/", protect(handlers.SyncJobByID))
+
+	// ── User management (admin only) ────────────────────────────
+	mux.HandleFunc("/api/users", admin(handlers.UsersRoute))
+	mux.HandleFunc("/api/users/", admin(handlers.UserByID))
+
+	// ── OAuth2 ──────────────────────────────────────────────────
+	mux.HandleFunc("/api/auth/oauth/config", public(handlers.OAuthConfigHandler))
+	mux.HandleFunc("/api/auth/oauth/google/callback", public(handlers.OAuthGoogleCallback(cfg.JWTSecret, cfg.JWTExpiry)))
+	mux.HandleFunc("/api/auth/oauth/github/callback", public(handlers.OAuthGitHubCallback(cfg.JWTSecret, cfg.JWTExpiry)))
+
+	// ── Prometheus metrics ──────────────────────────────────────
+	mux.HandleFunc("/api/metrics", public(handlers.MetricsHandler))
 
 	// ── Docs (always public) ─────────────────────────────────────
 	mux.HandleFunc("/api/docs/", public(handlers.ServeDocs))
