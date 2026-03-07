@@ -28,6 +28,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 // Static imports — bundled at build time, no fetch needed
 import indexMd         from '../../../../docs/index.md?raw'
@@ -91,7 +92,7 @@ const markdown   = ref(docMap['index'])
 const fetchError = ref('')
 
 const rendered = computed(() =>
-  markdown.value ? marked.parse(markdown.value) : ''
+  markdown.value ? DOMPurify.sanitize(marked.parse(markdown.value)) : ''
 )
 
 function navigate(page) {

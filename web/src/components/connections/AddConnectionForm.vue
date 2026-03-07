@@ -29,21 +29,22 @@
 
     <form @submit.prevent="handleSave" class="conn-form">
       <div class="form-group">
-        <label class="form-label">Name</label>
-        <BaseInput v-model="form.name" placeholder="e.g. Production Storage" />
+        <label class="form-label" for="conn-name">Name</label>
+        <BaseInput v-model="form.name" id="conn-name" placeholder="e.g. Production Storage" required />
       </div>
 
       <div class="form-group">
-        <label class="form-label">{{ provider === 'azure' ? 'Container' : provider === 'gdrive' ? 'Folder ID' : 'Bucket' }}</label>
-        <BaseInput v-model="form.bucket" :placeholder="bucketPlaceholder" />
+        <label class="form-label" for="conn-bucket">{{ provider === 'azure' ? 'Container' : provider === 'gdrive' ? 'Folder ID' : 'Bucket' }}</label>
+        <BaseInput v-model="form.bucket" id="conn-bucket" :placeholder="bucketPlaceholder" required />
       </div>
 
       <div class="form-group">
-        <label class="form-label">
+        <label class="form-label" for="conn-creds">
           {{ credentialsLabel }}
           <span class="form-label-optional" v-if="provider === 'gcp'">(optional for public buckets)</span>
         </label>
         <textarea
+          id="conn-creds"
           class="base-textarea"
           v-model="form.credentials"
           rows="6"
@@ -76,7 +77,7 @@
         <BaseButton type="button" variant="ghost" :loading="testing" @click="handleTest">
           {{ testing ? 'Testing…' : 'Test connection' }}
         </BaseButton>
-        <BaseButton type="submit" variant="primary" :loading="saving">
+        <BaseButton type="submit" variant="primary" :loading="saving" :disabled="!formValid || saving">
           {{ saving ? 'Saving…' : (editConn ? 'Update' : 'Save') }}
         </BaseButton>
       </div>
@@ -159,6 +160,12 @@ const credentialsPlaceholder = computed(() => {
   if (provider.value === 'azure')   return azurePlaceholder
   return awsPlaceholder
 })
+
+const formValid = computed(() =>
+  form.value.name.trim().length > 0 &&
+  form.value.bucket.trim().length > 0 &&
+  (provider.value === 'gcp' || form.value.credentials.trim().length > 0)
+)
 
 function handleTest() {
   emit('test', provider.value, form.value.bucket, form.value.credentials)

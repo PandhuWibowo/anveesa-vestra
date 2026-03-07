@@ -32,6 +32,7 @@
           class="sidebar-search__input"
           v-model="query"
           placeholder="Filter connections…"
+          aria-label="Filter connections"
         />
       </div>
 
@@ -69,7 +70,11 @@
           :key="c.provider + '-' + c.id"
           class="conn-item"
           :class="{ 'is-active': activeConn?.id === c.id && activeConn?.provider === c.provider }"
+          role="button"
+          tabindex="0"
           @click="$emit('select', c)"
+          @keydown.enter="$emit('select', c)"
+          @keydown.space.prevent="$emit('select', c)"
         >
           <div class="conn-badge" :class="`conn-badge--${c.provider}`">
             <ProviderIcon :provider="c.provider" :size="11" />
@@ -126,7 +131,11 @@
           :key="bm.provider + bm.id + bm.prefix"
           class="bookmark-item"
           :class="{ 'is-active': activeConn?.id === bm.id && activeConn?.provider === bm.provider && activePrefix === bm.prefix }"
+          role="button"
+          tabindex="0"
           @click="$emit('bookmark-navigate', bm)"
+          @keydown.enter="$emit('bookmark-navigate', bm)"
+          @keydown.space.prevent="$emit('bookmark-navigate', bm)"
           :title="`${bm.connName} / ${bm.prefix || bm.bucket}`"
         >
           <div class="conn-badge conn-badge--xs" :class="`conn-badge--${bm.provider}`">
@@ -147,6 +156,77 @@
           </button>
         </div>
       </template>
+    </div>
+
+    <!-- Navigation -->
+    <div class="sidebar__nav">
+      <div class="section-label" style="margin-bottom:4px">Management</div>
+
+      <!-- Dashboard -->
+      <button class="theme-btn" :class="{ 'is-active': activeView === 'dashboard' }" @click="$emit('navigate', 'dashboard')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Dashboard
+      </button>
+
+      <!-- Search -->
+      <button class="theme-btn" :class="{ 'is-active': activeView === 'search' }" @click="$emit('navigate', 'search')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Search
+      </button>
+
+      <!-- Shared Links -->
+      <button class="theme-btn" :class="{ 'is-active': activeView === 'shared' }" @click="$emit('navigate', 'shared')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        Shared Links
+      </button>
+
+      <!-- Audit Log -->
+      <button class="theme-btn" :class="{ 'is-active': activeView === 'audit' }" @click="$emit('navigate', 'audit')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Audit Log
+      </button>
+
+      <!-- Jobs -->
+      <button class="theme-btn" :class="{ 'is-active': activeView === 'jobs' }" @click="$emit('navigate', 'jobs')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+        </svg>
+        Jobs
+      </button>
+
+      <!-- Webhooks -->
+      <button class="theme-btn" :class="{ 'is-active': activeView === 'webhooks' }" @click="$emit('navigate', 'webhooks')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        Webhooks
+      </button>
+
+      <!-- Backup -->
+      <div class="sidebar__backup">
+        <button class="theme-btn" @click="$emit('export-connections')" title="Export all connections">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export
+        </button>
+        <button class="theme-btn" @click="$emit('import-connections')" title="Import connections from file">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Import
+        </button>
+      </div>
     </div>
 
     <!-- Bottom actions -->
@@ -189,6 +269,17 @@
         </svg>
         {{ isLight ? 'Light mode' : 'Dark mode' }}
       </button>
+
+      <!-- User + Logout (only when auth is enabled) -->
+      <div v-if="authEnabled" class="sidebar__user">
+        <span v-if="username" class="sidebar__username">{{ username }}</span>
+        <button class="theme-btn" @click="$emit('logout')" title="Sign out">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign out
+        </button>
+      </div>
     </div>
   </aside>
 </template>
@@ -211,9 +302,12 @@ const props = defineProps({
   docsActive:     { type: Boolean, default: false },
   activityActive: { type: Boolean, default: false },
   splitActive:    { type: Boolean, default: false },
+  activeView:     { type: String,  default: '' },
+  username:       { type: String,  default: '' },
+  authEnabled:    { type: Boolean, default: true },
 })
 
-defineEmits(['new-connection', 'select', 'edit', 'delete', 'docs', 'activity', 'split', 'bookmark-navigate'])
+defineEmits(['new-connection', 'select', 'edit', 'delete', 'docs', 'activity', 'split', 'bookmark-navigate', 'logout', 'navigate', 'export-connections', 'import-connections'])
 
 const { isLight, toggleTheme }          = useTheme()
 const { isPinned, togglePin }           = usePins()
