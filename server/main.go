@@ -43,7 +43,7 @@ func main() {
 	admin := func(h http.HandlerFunc) http.HandlerFunc {
 		wrapped := h
 		if cfg.AuthEnabled {
-			wrapped = adminOnly(auth(wrapped))
+			wrapped = auth(adminOnly(wrapped))
 		}
 		return cors(rate(wrapped))
 	}
