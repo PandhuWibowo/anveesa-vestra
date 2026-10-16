@@ -1,15 +1,14 @@
 <template>
   <AuthScreen v-if="authChecked && authEnabled && !isAuthenticated" />
-  <div v-else-if="authChecked" class="shell">
+  <div v-else-if="authChecked" class="shell"
+       :class="{ 'sidebar-hidden': sidebarHidden, 'is-resizing': sidebarResizing }"
+       :style="{ '--sidebar-w': sidebarWidth + 'px' }">
     <!-- Sidebar -->
     <AppSidebar
       :connections="connections"
       :loading="loading"
       :activeConn="activeConn"
       :activePrefix="activePrefix"
-      :docsActive="mode === 'docs'"
-      :activityActive="activityOpen"
-      :splitActive="splitPane"
       :activeView="mode"
       :username="user?.username || ''"
       :authEnabled="authEnabled"
@@ -17,38 +16,23 @@
       @select="handleSelect"
       @edit="handleEdit"
       @delete="handleDelete"
-      @docs="mode = 'docs'"
-      @activity="activityOpen = !activityOpen"
-      @split="toggleSplit"
       @bookmark-navigate="handleBookmarkNavigate"
       @logout="logout"
       @navigate="handleNavigate"
-      @export-connections="handleExport"
-      @import-connections="handleImport"
     />
 
     <!-- Main area -->
     <main class="main">
 
-      <!-- Welcome -->
-      <div v-if="mode === 'welcome'" class="welcome">
-        <div class="welcome__icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 15a4 4 0 0 0 4 4h9a5 5 0 0 0 1.8-9.7 6 6 0 0 0-11.8-1A4 4 0 0 0 3 15z"/>
-          </svg>
-        </div>
-        <p class="welcome__title">
-          {{ connections.length ? 'Select a connection' : 'No connections yet' }}
-        </p>
-        <p class="welcome__sub">
-          {{ connections.length
-            ? 'Choose a connection from the sidebar to browse its files.'
-            : 'Add your first cloud bucket to start browsing files.' }}
-        </p>
-        <BaseButton v-if="!connections.length" variant="primary" @click="startNew" style="margin-top:8px">
-          New Connection
-        </BaseButton>
-      </div>
+      <!-- Home -->
+      <HomeView
+        v-if="mode === 'home'"
+        :connections="connections"
+        :loading="loading"
+        @select="handleSelect"
+        @new-connection="startNew"
+        @bookmark-navigate="handleBookmarkNavigate"
+      />
 
       <!-- New connection form -->
       <AddConnectionForm
@@ -82,6 +66,8 @@
             :connections="connections"
             :startPrefix="activePrefix"
             :paneId="splitPane ? 'left' : 'solo'"
+            :splitActive="splitPane"
+            @split="toggleSplit"
             @delete="handleDelete(activeConn.provider, activeConn.id)"
           />
 
@@ -103,6 +89,8 @@
               :connections="connections"
               :startPrefix="rightPrefix"
               paneId="right"
+              :splitActive="splitPane"
+              @split="toggleSplit"
               @delete="handleDelete(rightConn.provider, rightConn.id)"
             />
           </template>
@@ -112,43 +100,30 @@
       <!-- Documentation -->
       <DocsViewer v-else-if="mode === 'docs'" />
 
-      <!-- Dashboard / Analytics -->
-      <AnalyticsDashboard v-else-if="mode === 'dashboard'" />
-
-      <!-- Search -->
-      <SearchView v-else-if="mode === 'search'" :connections="connections" @navigate="handleSearchNavigate" />
-
-      <!-- Shared Links -->
-      <SharedLinksView v-else-if="mode === 'shared'" />
-
-      <!-- Audit Log -->
-      <AuditLogView v-else-if="mode === 'audit'" />
-
-      <!-- Jobs -->
-      <JobsView v-else-if="mode === 'jobs'" />
-
-      <!-- Webhooks -->
-      <WebhooksView v-else-if="mode === 'webhooks'" />
-
-      <!-- Notifications -->
-      <NotificationsView v-else-if="mode === 'notifications'" />
-
-      <!-- Sync -->
-      <SyncView v-else-if="mode === 'sync'" />
-
-      <!-- Users -->
-      <UsersView v-else-if="mode === 'users'" />
-
-      <!-- 2FA Settings -->
-      <TwoFactorView v-else-if="mode === '2fa'" />
-
-      <!-- Bucket Management -->
-      <BucketManagementView v-else-if="mode === 'buckets'" :connections="connections" />
+      <!-- Settings (everything advanced lives here) -->
+      <SettingsView
+        v-else-if="mode === 'settings'"
+        v-model:page="settingsPage"
+        :authEnabled="authEnabled"
+        @export-connections="handleExport"
+        @import-connections="handleImport"
+        @docs="mode = 'docs'"
+      />
 
     </main>
 
-    <!-- Activity panel (slides in over right edge) -->
-    <ActivityPanel :open="activityOpen" @close="activityOpen = false" />
+    <!-- Sidebar toggle: pinned in the title-bar row so it never moves. Kept
+         last in the markup: Electron applies window drag regions in document
+         order, so a no-drag control must come after the drag areas it overlaps. -->
+    <div class="window-bar">
+      <button class="window-bar__btn" @click="toggleSidebar"
+        :title="(sidebarHidden ? 'Show sidebar' : 'Hide sidebar') + (isMac ? ' (⌘\\)' : ' (Ctrl+\\)')"
+        :aria-label="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="3.5"/><line x1="9.5" y1="4" x2="9.5" y2="20"/>
+        </svg>
+      </button>
+    </div>
 
     <!-- Global overlays -->
     <ToastContainer />
@@ -163,28 +138,19 @@ import AppSidebar        from './components/layout/AppHeader.vue'
 import AddConnectionForm from './components/connections/AddConnectionForm.vue'
 import BucketBrowser     from './components/connections/BucketBrowser.vue'
 import DocsViewer        from './components/docs/DocsViewer.vue'
-import ActivityPanel     from './components/ui/ActivityPanel.vue'
 import BaseButton        from './components/ui/BaseButton.vue'
 import ToastContainer    from './components/ui/ToastContainer.vue'
 import ConfirmModal      from './components/ui/ConfirmModal.vue'
 import AuthScreen        from './components/auth/AuthScreen.vue'
-import AnalyticsDashboard from './components/views/AnalyticsDashboard.vue'
-import SearchView        from './components/views/SearchView.vue'
-import SharedLinksView   from './components/views/SharedLinksView.vue'
-import AuditLogView      from './components/views/AuditLogView.vue'
-import JobsView          from './components/views/JobsView.vue'
-import WebhooksView      from './components/views/WebhooksView.vue'
-import NotificationsView from './components/views/NotificationsView.vue'
-import SyncView          from './components/views/SyncView.vue'
-import UsersView              from './components/views/UsersView.vue'
-import TwoFactorView          from './components/views/TwoFactorView.vue'
-import BucketManagementView   from './components/views/BucketManagementView.vue'
+import HomeView          from './components/views/HomeView.vue'
+import SettingsView      from './components/views/SettingsView.vue'
 import ShortcutModal     from './components/ui/ShortcutModal.vue'
 import { useConnections } from './composables/useConnections.js'
 import { useAuth }        from './composables/useAuth.js'
 import { useToast }       from './composables/useToast.js'
 import { useConfirm }     from './composables/useConfirm.js'
 import { useConnectionBackup } from './composables/useConnectionBackup.js'
+import { useSidebar }     from './composables/useSidebar.js'
 
 const {
   connections, loading, testing, saving, error, notice,
@@ -196,8 +162,13 @@ const { token, isAuthenticated, authChecked, authEnabled, checkSetup, fetchMe, l
 const toast = useToast()
 const confirm = useConfirm()
 const { exportConnections, importConnections } = useConnectionBackup()
+const {
+  hidden: sidebarHidden, width: sidebarWidth, resizing: sidebarResizing, toggle: toggleSidebar,
+} = useSidebar()
+const isMac = /Mac/.test(navigator.platform)
 
-const mode        = ref('welcome') // 'welcome' | 'form' | 'edit' | 'browse' | 'docs' | 'dashboard' | 'search' | 'shared' | 'audit' | 'jobs' | 'webhooks'
+const mode        = ref('home') // 'home' | 'form' | 'edit' | 'browse' | 'settings' | 'docs'
+const settingsPage = ref('general') // 'general' | '2fa'
 const shortcutOpen = ref(false)
 const activeConn  = ref(null)
 const activePrefix = ref('')
@@ -217,7 +188,7 @@ function restoreNavState() {
     const raw = localStorage.getItem('anveesa-nav')
     if (!raw) return
     const state = JSON.parse(raw)
-    const restorable = ['browse', 'docs', 'dashboard', 'search', 'shared', 'audit', 'jobs', 'webhooks', 'notifications', 'sync', 'users', '2fa', 'buckets']
+    const restorable = ['browse', 'docs', 'settings']
     if (!restorable.includes(state.mode)) return
     if (state.mode === 'browse' && state.connProvider != null && state.connId != null) {
       const conn = connections.value.find(
@@ -236,9 +207,6 @@ function restoreNavState() {
   } catch { /* ignore corrupt data */ }
 }
 
-// ── Activity panel ─────────────────────────────────────────────
-const activityOpen = ref(false)
-
 // ── Split (dual-pane) ──────────────────────────────────────────
 const splitPane   = ref(false)
 const rightConn   = ref(null)
@@ -256,15 +224,6 @@ function toggleSplit() {
 }
 
 onMounted(async () => {
-  // Handle OAuth redirect token
-  const urlParams = new URLSearchParams(window.location.search)
-  const oauthToken = urlParams.get('oauth_token')
-  if (oauthToken) {
-    localStorage.setItem('auth_token', oauthToken)
-    token.value = oauthToken
-    window.history.replaceState({}, '', window.location.pathname)
-  }
-
   await checkSetup()
   if (authEnabled.value && token.value) {
     await fetchMe()
@@ -287,6 +246,11 @@ watch(isAuthenticated, async (authed) => {
 watch([mode, activeConn, activePrefix], () => saveNavState())
 
 function onAppKeyDown(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+    e.preventDefault()
+    toggleSidebar()
+    return
+  }
   const inInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)
   if (e.key === '?' && !inInput && !e.metaKey && !e.ctrlKey) {
     shortcutOpen.value = !shortcutOpen.value
@@ -355,20 +319,9 @@ function handleBookmarkNavigate(bm) {
 // ── View navigation ──────────────────────────────────────────
 
 function handleNavigate(view) {
+  if (view === 'settings') settingsPage.value = 'general'
   mode.value = view
   clearMessages()
-}
-
-function handleSearchNavigate(result) {
-  const conn = connections.value.find(
-    c => c.provider === result.provider && c.id === result.connection_id
-  )
-  if (!conn) return
-  const parts = result.key.split('/')
-  const prefix = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : ''
-  activeConn.value   = conn
-  activePrefix.value = prefix
-  mode.value         = 'browse'
 }
 
 // ── Connection backup ─────────────────────────────────────────
@@ -429,7 +382,7 @@ async function handleUpdate(provider, form, resolve, id) {
       if (updated) activeConn.value = updated
     }
     editingConn.value = null
-    mode.value        = activeConn.value ? 'browse' : 'welcome'
+    mode.value        = activeConn.value ? 'browse' : 'home'
     toast.success('Connection updated.')
   }
   resolve?.(success)
@@ -446,7 +399,7 @@ async function handleDelete(provider, id) {
   if (activeConn.value?.id === id && activeConn.value?.provider === provider) {
     activeConn.value   = null
     activePrefix.value = ''
-    mode.value         = 'welcome'
+    mode.value         = 'home'
   }
   if (rightConn.value?.id === id && rightConn.value?.provider === provider) {
     rightConn.value   = null
@@ -454,7 +407,7 @@ async function handleDelete(provider, id) {
   }
   if (editingConn.value?.id === id && editingConn.value?.provider === provider) {
     editingConn.value = null
-    mode.value        = 'welcome'
+    mode.value        = 'home'
   }
   removeConnection(provider, id)
 }

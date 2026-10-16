@@ -23,27 +23,17 @@ func main() {
 	}
 
 	go handlers.StartJobWorker()
-	go handlers.StartSyncScheduler()
 
 	cors := func(next http.HandlerFunc) http.HandlerFunc {
 		return middleware.CORS(cfg.CORSOrigin, next)
 	}
 	rate := middleware.RateLimit(20, 60)
 	auth := middleware.RequireAuth(cfg.JWTSecret)
-	adminOnly := middleware.RequireRole("admin")
 
 	protect := func(h http.HandlerFunc) http.HandlerFunc {
 		wrapped := h
 		if cfg.AuthEnabled {
 			wrapped = auth(wrapped)
-		}
-		return cors(rate(wrapped))
-	}
-
-	admin := func(h http.HandlerFunc) http.HandlerFunc {
-		wrapped := h
-		if cfg.AuthEnabled {
-			wrapped = auth(adminOnly(wrapped))
 		}
 		return cors(rate(wrapped))
 	}
@@ -88,9 +78,6 @@ func main() {
 	mux.HandleFunc("/api/gcp/bucket/versions", protect(handlers.ListGCPVersions))
 	mux.HandleFunc("/api/gcp/bucket/version/restore", protect(handlers.RestoreGCPVersion))
 	mux.HandleFunc("/api/gcp/bucket/version/delete", protect(handlers.DeleteGCPVersion))
-	mux.HandleFunc("/api/gcp/buckets/list", protect(handlers.ListGCPBuckets))
-	mux.HandleFunc("/api/gcp/buckets/create", protect(handlers.CreateGCPBucket))
-	mux.HandleFunc("/api/gcp/buckets/delete", protect(handlers.DeleteGCPBucket))
 
 	// ── AWS ──────────────────────────────────────────────────────
 	mux.HandleFunc("/api/aws/connections", protect(handlers.ListAWS))
@@ -111,9 +98,6 @@ func main() {
 	mux.HandleFunc("/api/aws/bucket/versions", protect(handlers.ListAWSVersions))
 	mux.HandleFunc("/api/aws/bucket/version/restore", protect(handlers.RestoreAWSVersion))
 	mux.HandleFunc("/api/aws/bucket/version/delete", protect(handlers.DeleteAWSVersion))
-	mux.HandleFunc("/api/aws/buckets/list", protect(handlers.ListAWSBuckets))
-	mux.HandleFunc("/api/aws/buckets/create", protect(handlers.CreateAWSBucket))
-	mux.HandleFunc("/api/aws/buckets/delete", protect(handlers.DeleteAWSBucket))
 
 	// ── Huawei OBS ───────────────────────────────────────────────
 	mux.HandleFunc("/api/huawei/connections", protect(handlers.ListHuawei))
@@ -150,9 +134,6 @@ func main() {
 	mux.HandleFunc("/api/alibaba/bucket/versions", protect(handlers.ListAlibabaVersions))
 	mux.HandleFunc("/api/alibaba/bucket/version/restore", protect(handlers.RestoreAlibabaVersion))
 	mux.HandleFunc("/api/alibaba/bucket/version/delete", protect(handlers.DeleteAlibabaVersion))
-	mux.HandleFunc("/api/alibaba/buckets/list", protect(handlers.ListAlibabaBuckets))
-	mux.HandleFunc("/api/alibaba/buckets/create", protect(handlers.CreateAlibabaBucket))
-	mux.HandleFunc("/api/alibaba/buckets/delete", protect(handlers.DeleteAlibabaBucket))
 
 	// ── Azure Blob Storage ───────────────────────────────────────
 	mux.HandleFunc("/api/azure/connections", protect(handlers.ListAzure))
@@ -170,9 +151,6 @@ func main() {
 	mux.HandleFunc("/api/azure/bucket/metadata/update", protect(handlers.UpdateAzureMetadata))
 	mux.HandleFunc("/api/azure/bucket/delete-prefix", protect(handlers.DeletePrefixAzure))
 	mux.HandleFunc("/api/azure/bucket/presign-upload", protect(handlers.PresignAzureUpload))
-	mux.HandleFunc("/api/azure/containers/list", protect(handlers.ListAzureContainers))
-	mux.HandleFunc("/api/azure/containers/create", protect(handlers.CreateAzureContainer))
-	mux.HandleFunc("/api/azure/containers/delete", protect(handlers.DeleteAzureContainer))
 
 	// ── Google Drive ─────────────────────────────────────────────
 	mux.HandleFunc("/api/gdrive/connections", protect(handlers.ListGDrive))
@@ -211,21 +189,6 @@ func main() {
 	// ── Zip download ─────────────────────────────────────────────
 	mux.HandleFunc("/api/zip", protect(handlers.ZipObjects))
 
-	// ── Shared links (public access by token) ────────────────────
-	mux.HandleFunc("/api/share", protect(handlers.CreateSharedLink))
-	mux.HandleFunc("/api/share/", public(handlers.AccessSharedLink))
-	mux.HandleFunc("/api/shares", protect(handlers.ListSharedLinks))
-	mux.HandleFunc("/api/shares/", protect(handlers.DeleteSharedLink))
-
-	// ── Audit log ────────────────────────────────────────────────
-	mux.HandleFunc("/api/audit", protect(handlers.ListAuditLog))
-
-	// ── Search ───────────────────────────────────────────────────
-	mux.HandleFunc("/api/search", protect(handlers.SearchObjects))
-
-	// ── Analytics ────────────────────────────────────────────────
-	mux.HandleFunc("/api/analytics", protect(handlers.AnalyticsSummary))
-
 	// ── Health ───────────────────────────────────────────────────
 	mux.HandleFunc("/api/health", public(handlers.HealthCheck))
 
@@ -236,44 +199,32 @@ func main() {
 	// ── Bulk transfer ────────────────────────────────────────────
 	mux.HandleFunc("/api/transfer/bulk", protect(handlers.BulkTransferObjects))
 
-	// ── Webhooks ─────────────────────────────────────────────────
-	mux.HandleFunc("/api/webhooks", protect(handlers.WebhooksRoute))
-	mux.HandleFunc("/api/webhooks/", protect(handlers.DeleteWebhook))
-
-	// ── Notifications ───────────────────────────────────────────
-	mux.HandleFunc("/api/notifications", admin(handlers.NotificationChannelsRoute))
-	mux.HandleFunc("/api/notifications/test", admin(handlers.TestNotificationChannel))
-	mux.HandleFunc("/api/notifications/", admin(handlers.DeleteNotificationChannel))
-
-	// ── Sync jobs ───────────────────────────────────────────────
-	mux.HandleFunc("/api/sync", protect(handlers.SyncJobsRoute))
-	mux.HandleFunc("/api/sync/", protect(handlers.SyncJobByID))
-
-	// ── User management (admin only) ────────────────────────────
-	mux.HandleFunc("/api/users", admin(handlers.UsersRoute))
-	mux.HandleFunc("/api/users/", admin(handlers.UserByID))
-
-	// ── OAuth2 ──────────────────────────────────────────────────
-	mux.HandleFunc("/api/auth/oauth/config", public(handlers.OAuthConfigHandler))
-	mux.HandleFunc("/api/auth/oauth/google/callback", public(handlers.OAuthGoogleCallback(cfg.JWTSecret, cfg.JWTExpiry)))
-	mux.HandleFunc("/api/auth/oauth/github/callback", public(handlers.OAuthGitHubCallback(cfg.JWTSecret, cfg.JWTExpiry)))
-
 	// ── Prometheus metrics ──────────────────────────────────────
 	mux.HandleFunc("/api/metrics", public(handlers.MetricsHandler))
 
 	// ── Docs (always public) ─────────────────────────────────────
 	mux.HandleFunc("/api/docs/", public(handlers.ServeDocs))
 
+	// ── Frontend (desktop mode; Docker serves it via Nginx) ─────
+	if cfg.StaticDir != "" {
+		mux.HandleFunc("/", handlers.SPAHandler(cfg.StaticDir))
+	}
+
+	var handler http.Handler = mux
+	if cfg.DesktopToken != "" {
+		handler = middleware.RequireDesktopToken(cfg.DesktopToken, mux)
+	}
+
 	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           mux,
+		Addr:              cfg.Host + ":" + cfg.Port,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
 
 	go func() {
-		log.Printf("starting backend on %s (auth=%v)", srv.Addr, cfg.AuthEnabled)
+		log.Printf("starting backend on %s (auth=%v, desktop=%v)", srv.Addr, cfg.AuthEnabled, cfg.DesktopToken != "")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server failed: %v", err)
 		}

@@ -22,6 +22,16 @@ const (
 	MaxPresignExpiry = 7 * 24 * 60 * 60 // 7 days in seconds
 )
 
+// providerTable maps a provider name to its DB table.
+var providerTable = map[string]string{
+	"aws":     "aws_connections",
+	"alibaba": "alibaba_connections",
+	"huawei":  "huawei_connections",
+	"gcp":     "gcp_connections",
+	"azure":   "azure_connections",
+	"gdrive":  "gdrive_connections",
+}
+
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -89,12 +99,6 @@ func encryptionKey() []byte {
 		return nil
 	}
 	return []byte(k[:32])
-}
-
-// safeError returns a generic message for internal errors to avoid leaking details.
-func safeError(err error) string {
-	_ = err
-	return "an internal error occurred"
 }
 
 // limitBody wraps the request body with a size limit.

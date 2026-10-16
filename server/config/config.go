@@ -9,6 +9,7 @@ import (
 // Config holds all application configuration loaded from environment variables.
 type Config struct {
 	Port          string
+	Host          string
 	DBPath        string
 	CORSOrigin    string
 	EncryptionKey string
@@ -16,12 +17,11 @@ type Config struct {
 	AuthEnabled   bool
 	JWTExpiry     time.Duration
 
-	// OAuth2
-	GoogleClientID     string
-	GoogleClientSecret string
-	GitHubClientID     string
-	GitHubClientSecret string
-	OAuthRedirectBase  string
+	// StaticDir, when set, makes the backend serve the built frontend itself
+	// (desktop mode). Docker serves it through Nginx instead.
+	StaticDir string
+	// DesktopToken, when set, is required on every request (desktop mode).
+	DesktopToken string
 
 	// SMTP (for notifications and shared link delivery)
 	SMTPHost     string
@@ -35,6 +35,7 @@ type Config struct {
 func Load() *Config {
 	cfg := &Config{
 		Port:          envOr("PORT", "8080"),
+		Host:          os.Getenv("HOST"),
 		DBPath:        envOr("DB_PATH", "data.db"),
 		CORSOrigin:    envOr("CORS_ORIGIN", "*"),
 		EncryptionKey: os.Getenv("ENCRYPTION_KEY"),
@@ -42,11 +43,8 @@ func Load() *Config {
 		AuthEnabled:   envBool("AUTH_ENABLED", true),
 		JWTExpiry:     envDuration("JWT_EXPIRY", 24*time.Hour),
 
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-		OAuthRedirectBase:  envOr("OAUTH_REDIRECT_BASE", "http://localhost:5173"),
+		StaticDir:    os.Getenv("STATIC_DIR"),
+		DesktopToken: os.Getenv("DESKTOP_TOKEN"),
 
 		SMTPHost:     os.Getenv("SMTP_HOST"),
 		SMTPPort:     envOr("SMTP_PORT", "587"),
