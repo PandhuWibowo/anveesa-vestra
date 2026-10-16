@@ -37,7 +37,6 @@ import authentication  from '../../../../docs/authentication.md?raw'
 import connections     from '../../../../docs/connections.md?raw'
 import browser         from '../../../../docs/browser.md?raw'
 import filePreview     from '../../../../docs/file-preview.md?raw'
-import management      from '../../../../docs/management.md?raw'
 import apiReference    from '../../../../docs/api-reference.md?raw'
 import deployment      from '../../../../docs/deployment.md?raw'
 import contributing    from '../../../../docs/contributing.md?raw'
@@ -50,7 +49,6 @@ const docMap = {
   'connections':     connections,
   'browser':         browser,
   'file-preview':    filePreview,
-  'management':      management,
   'api-reference':   apiReference,
   'deployment':      deployment,
   'contributing':    contributing,
@@ -87,11 +85,6 @@ const pages = [
     id: 'file-preview',
     label: 'File Preview',
     icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
-  },
-  {
-    id: 'management',
-    label: 'Management',
-    icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>',
   },
   {
     id: 'api-reference',

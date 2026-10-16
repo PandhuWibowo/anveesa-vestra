@@ -1,7 +1,6 @@
 package middleware_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -63,34 +62,6 @@ func TestRequireAuth(t *testing.T) {
 	}
 	if capturedClaims.UserID != 1 || capturedClaims.Username != "testuser" || capturedClaims.Role != "admin" {
 		t.Errorf("unexpected claims: %+v", capturedClaims)
-	}
-}
-
-func TestRequireRole(t *testing.T) {
-	next := func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}
-
-	// Create fake claims with role "viewer" in context
-	viewerClaims := &auth.Claims{UserID: 1, Username: "viewer", Role: "viewer"}
-	ctx := context.WithValue(context.Background(), middleware.ClaimsKey, viewerClaims)
-
-	// RequireRole("admin") -> 403
-	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
-	rr := httptest.NewRecorder()
-	middleware.RequireRole("admin")(next)(rr, req)
-
-	if rr.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 for viewer with RequireRole(admin), got %d: %s", rr.Code, rr.Body.String())
-	}
-
-	// RequireRole("viewer", "admin") -> passes through
-	req2 := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
-	rr2 := httptest.NewRecorder()
-	middleware.RequireRole("viewer", "admin")(next)(rr2, req2)
-
-	if rr2.Code != http.StatusOK {
-		t.Fatalf("expected 200 for viewer with RequireRole(viewer, admin), got %d: %s", rr2.Code, rr2.Body.String())
 	}
 }
 

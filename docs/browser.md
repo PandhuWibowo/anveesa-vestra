@@ -25,13 +25,9 @@ Click any breadcrumb segment, or press `Backspace` to go up one level.
 | Control | Description |
 |---|---|
 | Search box | Filter visible files by name — press `/` to focus |
-| Grid / List toggle | Switch between table view and grid/thumbnail view |
-| New Folder | Create an empty folder (uploads a hidden `.keep` placeholder) |
-| Upload | Pick files to upload to the current folder |
-| Upload Folder | Pick a local folder to upload, preserving subfolder structure |
-| Stats button | Toggle the bucket stats bar (object count + total size) |
-| Refresh button | Reload the current folder listing (`r`) |
-| Delete Connection | Remove this connection from the app |
+| List / Grid toggle | Switch between list view and grid/thumbnail view |
+| **⋯** menu | Refresh (`r`), add the folder to Favorites, open side-by-side, show bucket size |
+| **+ New** | Upload files, upload a folder (keeps subfolders), or create a new folder |
 
 ---
 
@@ -342,7 +338,7 @@ When you have connections from more than one provider, **filter chips** appear a
 
 ---
 
-## Bookmarks
+## Favorites
 
 Bookmark any folder path for quick access from the sidebar.
 
@@ -391,43 +387,10 @@ Click the **split icon** again to return to single-pane mode. The right pane is 
 
 ---
 
-## Activity Panel
-
-A slide-out panel showing a chronological log of all actions performed during the current session.
-
-### Opening the Panel
-
-Click the **activity icon** (bell) in the sidebar toolbar. The panel slides in from the right edge.
-
-### Event Types
-
-The activity log tracks:
-
-| Event | Dot color |
-|---|---|
-| Upload | Teal |
-| Download | Green |
-| Delete | Red |
-| Transfer | Purple |
-| Rename | Amber |
-| Zip | Cyan |
-| Folder create | Orange |
-| Copy | Gray |
-
-Each entry shows the action description, provider, and timestamp.
-
-### Clearing
-
-Click **Clear** at the top of the panel to remove all entries. The log is in-memory only — it resets on page refresh.
-
-> For a persistent server-side audit trail, see [Audit Log](./management.md#audit-log).
-
----
-
 ## Navigation Persistence
 
 Your current view and browsing location are saved to `localStorage` automatically. When you refresh the page or reopen the browser:
 
 - If you were browsing a connection, the same connection and folder path are restored.
-- If you were on a management view (dashboard, search, audit, etc.), that view is reopened.
-- Transient states (new connection form, edit form) are not restored — you return to the welcome screen instead.
+- If you were on the Settings page, it is reopened.
+- Transient states (new connection form, edit form) are not restored — you return to Home instead.

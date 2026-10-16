@@ -1,6 +1,6 @@
 # Anveesa Vestra
 
-A self-hosted, open-source cloud storage manager. Browse, upload, download, rename, preview, and manage files across **Google Cloud Storage**, **Amazon S3** (including Cloudflare R2 and MinIO), **Azure Blob Storage**, **Alibaba Cloud OSS**, **Huawei OBS**, and **Google Drive** from a single clean web interface.
+A personal, open-source cloud storage manager — run it as a **desktop app** (macOS, Windows, Linux) or self-host it with Docker. Browse, upload, download, rename, preview, and manage files across **Google Cloud Storage**, **Amazon S3** (including Cloudflare R2 and MinIO), **Azure Blob Storage**, **Alibaba Cloud OSS**, **Huawei OBS**, and **Google Drive** from a single clean web interface.
 
 **Website**: [anveesa.com](https://anveesa.com) | **GitHub**: [github.com/PandhuWibowo/anveesa-vestra](https://github.com/PandhuWibowo/anveesa-vestra)
 
@@ -15,7 +15,17 @@ username: admin
 password: admin123
 ```
 
-**Docker (recommended)**
+**Desktop app**
+
+```bash
+cd web && bun install && cd ..
+make desktop-dev   # run it locally
+make desktop       # build an installer into desktop/dist (.dmg / .exe / .AppImage)
+```
+
+The desktop app needs no login: it runs the backend on a random `127.0.0.1` port that only its own window can reach. Your connections live in the app's data folder (`~/Library/Application Support/Anveesa Vestra` on macOS, `%APPDATA%\Anveesa Vestra` on Windows, `~/.config/Anveesa Vestra` on Linux), encrypted with a key generated on first launch.
+
+**Docker**
 
 ```bash
 docker run -d -p 80:80 \
@@ -25,7 +35,7 @@ docker run -d -p 80:80 \
   pandhuwibowo/anveesa-vestra:latest
 ```
 
-Open [http://localhost](http://localhost) and create your admin account.
+Open [http://localhost](http://localhost) and create your account (single owner, optional 2FA).
 
 **From source**
 
@@ -43,18 +53,17 @@ Open [http://localhost:5173](http://localhost:5173). Create your admin account, 
 ## Features
 
 - **6 cloud providers** — GCS, S3/R2/MinIO, Azure, Alibaba OSS, Huawei OBS, Google Drive
-- **Authentication** — JWT-based login with first-run admin setup
+- **Desktop app** — Electron shell around the Go backend; native save dialogs for downloads
+- **Single-owner login** — password + optional 2FA when self-hosted; no login in the desktop app
 - **File preview** — images, PDF, video, audio, Markdown, JSON, CSV, Excel, Word, code
 - **Advanced preview** — fullscreen, image zoom, progressive text loading, line numbers
 - **Split view** — dual-pane browser with cross-pane drag-and-drop transfer
 - **Cross-connection transfer** — copy files between any two providers
 - **Bulk operations** — multi-select download, delete, zip, and bulk transfer as background jobs
-- **Shared links** — generate time-limited public download URLs
-- **Management views** — analytics dashboard, cross-connection search, audit log, jobs, webhooks
-- **Bookmarks** — pin folder paths for quick sidebar access
+- **Favorites** — pin folders for quick sidebar access
 - **Connection backup** — export/import all connections as JSON
 - **Keyboard-first** — full keyboard navigation with shortcuts modal (`?`)
-- **Dark mode** — system-aware theme toggle
+- **Light & dark themes** — white + sky blue, deep navy in dark mode; follows the OS by default
 - **Credential encryption** — AES encryption at rest for stored credentials
 
 ---
@@ -71,7 +80,6 @@ Full documentation lives in [`docs/`](./docs/) and is also available in-app via 
 | [Managing Connections](./docs/connections.md) | Credential setup for all 6 providers |
 | [File Browser](./docs/browser.md) | Browser features, split view, bookmarks, navigation |
 | [File Preview](./docs/file-preview.md) | Fullscreen, zoom, progressive loading, line numbers |
-| [Management Views](./docs/management.md) | Dashboard, search, shared links, audit, jobs, webhooks |
 | [API Reference](./docs/api-reference.md) | Complete REST API (104 endpoints) |
 | [Deployment](./docs/deployment.md) | Docker, binary, systemd, env vars |
 | [Contributing](./docs/contributing.md) | Local dev setup, conventions, adding providers |
@@ -101,6 +109,7 @@ PayPal: <https://www.paypal.com/paypalme/pandhuwibowo>
 | Database | SQLite (`modernc.org/sqlite`, pure Go) |
 | Frontend | Vue 3, Vite 5, Composition API |
 | Package manager | Bun (or npm) |
+| Desktop | Electron + electron-builder |
 | Container | Docker + nginx + supervisord |
 
 ---
@@ -110,6 +119,8 @@ PayPal: <https://www.paypal.com/paypalme/pandhuwibowo>
 ```bash
 make dev      # Start backend (port 8080) + frontend (port 5173)
 make build    # Compile Go binary to bin/server and build web/dist/
+make desktop-dev  # Build backend + frontend into desktop/resources and launch the app
+make desktop      # Package installers for this OS into desktop/dist
 ```
 
 ---

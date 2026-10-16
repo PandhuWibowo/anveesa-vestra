@@ -15,5 +15,6 @@ const LABELS = {
   huawei:  'OBS',
   alibaba: 'OSS',
   azure:   'Azure',
+  gdrive:  'Drive',
 }
 </script>

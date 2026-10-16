@@ -190,12 +190,7 @@ anveesa-vestra/
 │   │   ├── huawei.go    Huawei OBS
 │   │   ├── gdrive.go    Google Drive
 │   │   ├── auth.go      Authentication (login, register)
-│   │   ├── shared.go    Shared links
 │   │   ├── jobs.go      Background jobs
-│   │   ├── webhooks.go  Webhook management
-│   │   ├── audit.go     Audit logging
-│   │   ├── analytics.go Dashboard analytics
-│   │   ├── search.go    Cross-provider search
 │   │   └── ...          Transfer, zip, proxy, health
 │   └── middleware/      CORS, Auth, Rate limiting
 ├── web/                 Vue 3 frontend
@@ -203,7 +198,7 @@ anveesa-vestra/
 │   │   ├── App.vue              Root component and navigation logic
 │   │   ├── components/          UI and feature components
 │   │   │   ├── connections/     Browser + connection form
-│   │   │   ├── views/           Dashboard, search, audit, jobs, webhooks
+│   │   │   ├── views/           Home, Settings, two-factor
 │   │   │   ├── auth/            Login / registration screen
 │   │   │   └── ui/              Reusable UI components
 │   │   └── composables/         Shared state and API logic

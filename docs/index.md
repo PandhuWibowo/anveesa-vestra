@@ -67,7 +67,6 @@ Most cloud consoles are built for administrators, not daily users. They are slow
 | Feature | Description |
 |---|---|
 | Search / filter | Filter the current folder listing by filename (client-side, instant) |
-| Cross-connection search | Search objects by prefix across all connections and providers |
 | Infinite scroll | Loads 200 objects per page, fetches more automatically on scroll |
 | Sorting | Click any column header to sort by name, size, or last modified |
 | Provider filter | Filter the sidebar connection list by cloud provider |
@@ -89,17 +88,6 @@ Most cloud consoles are built for administrators, not daily users. They are slow
 |---|---|
 | Dual-pane browser | Open two connections side by side |
 | Cross-pane drag-and-drop | Drag a file from one pane and drop it into the other to copy |
-
-### Management & Monitoring
-
-| Feature | Description |
-|---|---|
-| Analytics dashboard | Connection counts, 24h activity, job status, shared link stats |
-| Shared links management | List, copy, and revoke all generated shared links |
-| Audit log | Server-side audit trail with action, provider, IP, and timestamps |
-| Background jobs | Monitor bulk transfers with progress, status tabs, and auto-refresh |
-| Webhooks | Configure HTTP endpoints for upload/download/delete/transfer/share events |
-| Activity panel | Client-side session log of all operations (slide-out panel) |
 
 ### Authentication & Security
 
@@ -161,7 +149,6 @@ Most cloud consoles are built for administrators, not daily users. They are slow
 - [Managing Connections](./connections.md) — credential setup for all providers
 - [File Browser](./browser.md) — browser features, split view, bookmarks, and navigation
 - [File Preview](./file-preview.md) — fullscreen, zoom, progressive loading, line numbers
-- [Management Views](./management.md) — dashboard, search, shared links, audit, jobs, webhooks
 - [API Reference](./api-reference.md) — complete REST API for the backend
 - [Deployment](./deployment.md) — build, configure, and run in production
 - [Contributing](./contributing.md) — local development and project structure

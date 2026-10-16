@@ -1,0 +1,46 @@
+{
+  "name": "anveesa-vestra-desktop",
+  "productName": "Anveesa Vestra",
+  "version": "0.5.5",
+  "description": "Personal cloud storage manager for GCS, S3, Azure, OSS, OBS and Google Drive",
+  "author": "Pandhu Wibowo",
+  "license": "MIT",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3"
+  },
+  "trustedDependencies": ["electron"],
+  "build": {
+    "appId": "com.anveesa.vestra",
+    "productName": "Anveesa Vestra",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": ["main.js", "preload.js", "package.json"],
+    "extraResources": [
+      { "from": "resources", "to": ".", "filter": ["**/*"] }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    }
+  }
+}

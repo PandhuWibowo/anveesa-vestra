@@ -1,274 +1,247 @@
 <template>
-  <aside class="sidebar" :class="{ 'is-collapsed': collapsed }">
-    <!-- Brand + collapse toggle in one row -->
-    <div class="sidebar__brand">
+  <aside class="sidebar" :aria-hidden="hidden" :inert="hidden">
+   <div class="sidebar__inner">
+    <!-- Title-bar row: room for the window controls + toggle, then the brand -->
+    <div class="sidebar__top">
       <div class="brand-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 15a4 4 0 0 0 4 4h9a5 5 0 0 0 1.8-9.7 6 6 0 0 0-11.8-1A4 4 0 0 0 3 15z"/>
         </svg>
       </div>
-      <div style="flex:1;min-width:0">
-        <div class="brand-name"><span class="brand-anvesa">Anveesa</span> Vestra</div>
-        <div class="brand-sub">Cloud storage manager</div>
-      </div>
-      <button class="sidebar__collapse-btn" @click="collapsed = !collapsed" :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <polyline v-if="!collapsed" points="7.5 9 4.5 6 7.5 3"/>
-          <polyline v-else             points="4.5 9 7.5 6 4.5 3"/>
-        </svg>
-      </button>
+      <span class="brand-name">Vestra</span>
     </div>
 
-    <!-- Scrollable body: connections + bookmarks + management nav -->
     <div class="sidebar__body">
-      <!-- New connection -->
-      <button class="btn-new-conn" @click="$emit('new-connection')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        New Connection
-      </button>
-
-      <!-- Search -->
-      <div v-if="connections.length > 0" class="sidebar-search">
-        <svg class="sidebar-search__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input
-          class="sidebar-search__input"
-          v-model="query"
-          placeholder="Filter connections…"
-          aria-label="Filter connections"
-        />
-      </div>
-
-      <!-- Provider filter chips -->
-      <div class="prov-filter" v-if="availableProviders.length > 1">
-        <button
-          v-for="prov in availableProviders"
-          :key="prov"
-          class="prov-chip"
-          :class="[`prov-chip--${prov}`, { 'prov-chip--active': filterProviders.has(prov) }]"
-          @click="toggleFilter(prov)"
-        >
-          <ProviderIcon :provider="prov" :size="10" />
-          {{ PROV_SHORT[prov] ?? prov }}
+      <!-- Primary navigation -->
+      <nav class="nav-list">
+        <button v-for="item in primaryNav" :key="item.view"
+          class="nav-item" :class="{ 'is-active': activeView === item.view }"
+          :title="item.label"
+          @click="$emit('navigate', item.view)">
+          <span class="nav-item__icon" v-html="item.icon"></span>
+          <span class="nav-item__label">{{ item.label }}</span>
         </button>
-      </div>
+      </nav>
 
-      <!-- Skeleton while loading -->
-      <SkeletonLoader v-if="loading" :count="3" height="42px" />
-
-      <template v-else>
-        <!-- Section label -->
-        <div v-if="filtered.length" class="section-label">
-          {{ filtered.some(c => isPinned(c.provider, c.id)) ? 'Pinned · All' : 'Connections' }}
+      <!-- Storage connections -->
+      <section class="nav-section">
+        <div class="nav-section__hd">
+          <span class="nav-section__title">Storage</span>
+          <button class="nav-section__add" @click="$emit('new-connection')" title="Add storage (N)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
         </div>
 
-        <!-- Empty -->
-        <div v-if="!filtered.length && !connections.length" class="sidebar-empty">
-          No connections yet.<br>Add your first bucket above.
+        <div v-if="connections.length > 5" class="sidebar-search">
+          <svg class="sidebar-search__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/></svg>
+          <input class="sidebar-search__input" v-model="query" placeholder="Filter" aria-label="Filter connections" />
         </div>
 
-        <!-- Items -->
-        <div
-          v-for="c in filtered"
-          :key="c.provider + '-' + c.id"
+        <div class="prov-filter" v-if="connections.length > 5 && availableProviders.length > 1">
+          <button v-for="prov in availableProviders" :key="prov"
+            class="prov-chip" :class="{ 'is-active': filterProviders.has(prov) }"
+            @click="toggleFilter(prov)">
+            <ProviderIcon :provider="prov" :size="10" />
+            {{ PROV_SHORT[prov] ?? prov }}
+          </button>
+        </div>
+
+        <SkeletonLoader v-if="loading" :count="3" height="34px" />
+
+        <template v-else>
+          <button v-if="!connections.length" class="sidebar-cta" @click="$emit('new-connection')">
+            <span class="sidebar-cta__icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <span>Add storage</span>
+          </button>
+
+          <div v-for="c in filtered" :key="c.provider + '-' + c.id"
+            class="conn-item"
+            :class="{ 'is-active': activeConn?.id === c.id && activeConn?.provider === c.provider, 'has-menu': menuFor === keyOf(c) }"
+            role="button" tabindex="0" :title="`${c.name} · ${c.bucket}`"
+            @click="$emit('select', c)"
+            @contextmenu.prevent="openMenuAtPoint($event, connMenu(c), keyOf(c))"
+            @keydown.enter="$emit('select', c)"
+            @keydown.space.prevent="$emit('select', c)">
+            <div class="conn-badge" :class="`conn-badge--${c.provider}`">
+              <ProviderIcon :provider="c.provider" :size="12" />
+            </div>
+            <span class="conn-item__name">{{ c.name }}</span>
+            <span v-if="isPinned(c.provider, c.id)" class="conn-item__pin" aria-label="Pinned">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M16 3a1 1 0 0 1 .7 1.7L15 6.4v4.2l2.7 2.7a1 1 0 0 1-.7 1.7h-4v5.5a1 1 0 0 1-2 0V15H7a1 1 0 0 1-.7-1.7L9 10.6V6.4L7.3 4.7A1 1 0 0 1 8 3z"/></svg>
+            </span>
+            <button class="conn-item__more" :class="{ 'is-open': menuFor === keyOf(c) }" aria-label="More actions" aria-haspopup="menu"
+              @click.stop="openMenuAt($event.currentTarget, connMenu(c), keyOf(c))">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            </button>
+          </div>
+
+          <p v-if="connections.length && !filtered.length" class="sidebar-hint">No matches</p>
+        </template>
+      </section>
+
+      <!-- Bookmarks -->
+      <section v-if="bookmarks.length" class="nav-section">
+        <div class="nav-section__hd">
+          <span class="nav-section__title">Favorites</span>
+        </div>
+        <div v-for="bm in bookmarks" :key="bm.provider + bm.id + bm.prefix"
           class="conn-item"
-          :class="{ 'is-active': activeConn?.id === c.id && activeConn?.provider === c.provider }"
-          role="button"
-          tabindex="0"
-          @click="$emit('select', c)"
-          @keydown.enter="$emit('select', c)"
-          @keydown.space.prevent="$emit('select', c)"
-        >
-          <div class="conn-badge" :class="`conn-badge--${c.provider}`">
-            <ProviderIcon :provider="c.provider" :size="11" />
-          </div>
-          <div class="conn-item__body">
-            <div class="conn-item__name">{{ c.name }}</div>
-            <div class="conn-item__bucket">{{ c.bucket }}</div>
-          </div>
-          <button class="conn-item__del" :class="{ 'is-pinned': isPinned(c.provider, c.id) }" @click.stop="togglePin(c.provider, c.id)" :title="isPinned(c.provider, c.id) ? 'Unpin' : 'Pin to top'">
-            <svg width="11" height="11" viewBox="0 0 24 24" :fill="isPinned(c.provider, c.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-          </button>
-          <button class="conn-item__del" @click.stop="$emit('edit', c)" title="Edit connection">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="conn-item__del" @click.stop="$emit('delete', c.provider, c.id)" title="Delete connection">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-      </template>
-
-      <!-- Bookmarks section -->
-      <template v-if="bookmarks.length">
-        <div class="section-label section-label--bookmarks">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="opacity:.7"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-          Bookmarks
-        </div>
-        <div
-          v-for="bm in bookmarks"
-          :key="bm.provider + bm.id + bm.prefix"
-          class="bookmark-item"
-          :class="{ 'is-active': activeConn?.id === bm.id && activeConn?.provider === bm.provider && activePrefix === bm.prefix }"
+          :class="{ 'is-active': activeConn?.id === bm.id && activeConn?.provider === bm.provider && activePrefix === bm.prefix, 'has-menu': menuFor === bmKey(bm) }"
           role="button" tabindex="0"
-          @click="$emit('bookmark-navigate', bm)"
-          @keydown.enter="$emit('bookmark-navigate', bm)"
-          @keydown.space.prevent="$emit('bookmark-navigate', bm)"
           :title="`${bm.connName} / ${bm.prefix || bm.bucket}`"
-        >
-          <div class="conn-badge conn-badge--xs" :class="`conn-badge--${bm.provider}`"><ProviderIcon :provider="bm.provider" :size="9" /></div>
-          <div class="bookmark-item__body">
-            <div class="bookmark-item__label">{{ bm.label }}</div>
-            <div class="bookmark-item__conn">{{ bm.connName }}</div>
+          @click="$emit('bookmark-navigate', bm)"
+          @contextmenu.prevent="openMenuAtPoint($event, bookmarkMenu(bm), bmKey(bm))"
+          @keydown.enter="$emit('bookmark-navigate', bm)"
+          @keydown.space.prevent="$emit('bookmark-navigate', bm)">
+          <div class="conn-badge conn-badge--bookmark">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </div>
-          <button class="conn-item__del" @click.stop="removeBookmark(bm.provider, bm.id, bm.prefix)" title="Remove bookmark">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <span class="conn-item__name">{{ bm.label }}</span>
+          <button class="conn-item__more" :class="{ 'is-open': menuFor === bmKey(bm) }" aria-label="More actions" aria-haspopup="menu"
+            @click.stop="openMenuAt($event.currentTarget, bookmarkMenu(bm), bmKey(bm))">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
           </button>
         </div>
-      </template>
+      </section>
 
-      <!-- ── Management nav (inside scroll) ── -->
-      <div class="sidebar-nav-group">
-        <button class="sidebar-nav-group__toggle" @click="navOpen = !navOpen">
-          <span class="section-label" style="margin:0;cursor:pointer">Management</span>
-          <svg :class="{ 'is-open': navOpen }" class="sidebar-nav-group__chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-
-        <div v-show="navOpen" class="sidebar-nav-group__items">
-          <button class="nav-item" :class="{ 'is-active': activeView === 'dashboard' }" @click="$emit('navigate', 'dashboard')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            Dashboard
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'search' }" @click="$emit('navigate', 'search')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Search
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'shared' }" @click="$emit('navigate', 'shared')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            Shared Links
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'jobs' }" @click="$emit('navigate', 'jobs')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-            Jobs
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'sync' }" @click="$emit('navigate', 'sync')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            Sync
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'audit' }" @click="$emit('navigate', 'audit')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            Audit
-          </button>
-
-          <!-- Settings sub-group -->
-          <div class="section-label" style="margin-top:8px">Settings</div>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'webhooks' }" @click="$emit('navigate', 'webhooks')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            Webhooks
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === 'notifications' }" @click="$emit('navigate', 'notifications')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
-            Notifications
-          </button>
-
-          <button class="nav-item" :class="{ 'is-active': activeView === 'buckets' }" @click="$emit('navigate', 'buckets')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            Buckets
-          </button>
-          <button class="nav-item" :class="{ 'is-active': activeView === '2fa' }" @click="$emit('navigate', '2fa')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            2FA
-          </button>
-
-          <!-- Export / Import inline -->
-          <div class="nav-item-pair">
-            <button class="nav-item nav-item--half" @click="$emit('export-connections')" title="Export all connections">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export
-            </button>
-            <button class="nav-item nav-item--half" @click="$emit('import-connections')" title="Import connections from file">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Import
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <!-- Bottom toolbar: compact icon row -->
-    <div class="sidebar__toolbar">
-      <button class="tb-icon" :class="{ 'is-active': splitActive }" @click="$emit('split')" title="Split view">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-      </button>
-      <button class="tb-icon" :class="{ 'is-active': activityActive }" @click="$emit('activity')" title="Activity log">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      </button>
-      <button class="tb-icon" :class="{ 'is-active': docsActive }" @click="$emit('docs')" title="Documentation">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      </button>
-      <button class="tb-icon" @click="toggleTheme" :title="isLight ? 'Dark mode' : 'Light mode'">
-        <svg v-if="isLight" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
-      <div class="tb-sep"></div>
-      <a class="tb-icon" href="https://github.com/PandhuWibowo/anveesa-vestra" target="_blank" rel="noopener" title="GitHub">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6.02 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.62-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg>
-      </a>
-      <a class="tb-icon" href="https://anveesa.com" target="_blank" rel="noopener" title="anveesa.com">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-      </a>
-    </div>
-
-    <!-- User bar (only when auth is enabled) -->
-    <div v-if="authEnabled" class="sidebar__userbar">
-      <div class="sidebar__userbar-info" v-if="username">
+    <!-- Footer -->
+    <div class="sidebar__footer">
+      <div v-if="authEnabled && username" class="sidebar__user" :title="username">
         <div class="sidebar__avatar">{{ username.charAt(0).toUpperCase() }}</div>
-        <span class="sidebar__userbar-name">{{ username }}</span>
+        <span class="sidebar__user-name">{{ username }}</span>
+        <button class="tb-icon" @click="$emit('logout')" title="Sign out">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
       </div>
-      <button class="tb-icon" @click="$emit('logout')" title="Sign out">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      </button>
+      <div class="sidebar__footer-row">
+        <button class="nav-item" :class="{ 'is-active': activeView === 'settings' }" @click="$emit('navigate', 'settings')">
+          <span class="nav-item__icon" v-html="ICONS.settings"></span>
+          <span class="nav-item__label">Settings</span>
+        </button>
+        <button class="tb-icon" @click="toggleTheme" :title="isLight ? 'Switch to dark mode' : 'Switch to light mode'">
+          <svg v-if="isLight" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+      </div>
     </div>
+   </div>
+
+    <!-- Drag to resize; double-click to reset -->
+    <div class="sidebar__resizer" title="Drag to resize" @pointerdown="startResize" @dblclick="resetWidth"></div>
+
+    <ContextMenu :open="!!menuFor" :x="menuPos.x" :y="menuPos.y" :items="menuItems" @close="menuFor = null" />
   </aside>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import SkeletonLoader from '../ui/SkeletonLoader.vue'
 import ProviderIcon   from '../ui/ProviderIcon.vue'
+import ContextMenu    from '../ui/ContextMenu.vue'
 import { useTheme }     from '../../composables/useTheme.js'
 import { usePins }      from '../../composables/usePins.js'
 import { useBookmarks } from '../../composables/useBookmarks.js'
+import { useSidebar }   from '../../composables/useSidebar.js'
 
-const PROV_SHORT = { gcp: 'GCS', aws: 'S3', huawei: 'OBS', alibaba: 'OSS', azure: 'Azure' }
+const PROV_SHORT = { gcp: 'GCS', aws: 'S3', huawei: 'OBS', alibaba: 'OSS', azure: 'Azure', gdrive: 'Drive' }
+
+const svg = body => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
+const ICONS = {
+  home:     svg('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>'),
+  settings: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
+}
 
 const props = defineProps({
   connections:    { type: Array,   default: () => [] },
   loading:        { type: Boolean, default: false },
   activeConn:     { type: Object,  default: null },
   activePrefix:   { type: String,  default: '' },
-  docsActive:     { type: Boolean, default: false },
-  activityActive: { type: Boolean, default: false },
-  splitActive:    { type: Boolean, default: false },
   activeView:     { type: String,  default: '' },
   username:       { type: String,  default: '' },
   authEnabled:    { type: Boolean, default: true },
 })
 
-defineEmits(['new-connection', 'select', 'edit', 'delete', 'docs', 'activity', 'split', 'bookmark-navigate', 'logout', 'navigate', 'export-connections', 'import-connections'])
+const emit = defineEmits(['new-connection', 'select', 'edit', 'delete', 'bookmark-navigate', 'logout', 'navigate'])
 
 const { isLight, toggleTheme }          = useTheme()
 const { isPinned, togglePin }           = usePins()
 const { bookmarks, removeBookmark }     = useBookmarks()
 
+const primaryNav = [
+  { view: 'home', label: 'Home', icon: ICONS.home },
+]
+
 const query           = ref('')
 const filterProviders = ref(new Set())
-const navOpen         = ref(true)
-const collapsed       = ref(localStorage.getItem('anveesa-sidebar-collapsed') === 'true')
 
-watch(collapsed, v => localStorage.setItem('anveesa-sidebar-collapsed', String(v)))
+const { hidden, width, resizing, setWidth, resetWidth } = useSidebar()
+
+// ── Row menus (⋯ button or right-click) ──────────────────────────
+const MENU_ICONS = {
+  pin:    svg('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>'),
+  unpin:  svg('<path d="M12 17v5"/><path d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/>'),
+  edit:   svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+  trash:  svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),
+  remove: svg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
+}
+
+const menuFor   = ref(null)   // key of the row whose menu is open
+const menuPos   = ref({ x: 0, y: 0 })
+const menuItems = ref([])
+
+const keyOf = c  => `conn:${c.provider}:${c.id}`
+const bmKey = bm => `bm:${bm.provider}:${bm.id}:${bm.prefix}`
+
+function connMenu(c) {
+  const pinned = isPinned(c.provider, c.id)
+  return [
+    { label: pinned ? 'Unpin' : 'Pin to top', icon: pinned ? MENU_ICONS.unpin : MENU_ICONS.pin, action: () => togglePin(c.provider, c.id) },
+    { label: 'Edit connection', icon: MENU_ICONS.edit, action: () => emit('edit', c) },
+    { separator: true },
+    { label: 'Delete connection', icon: MENU_ICONS.trash, danger: true, action: () => emit('delete', c.provider, c.id) },
+  ]
+}
+function bookmarkMenu(bm) {
+  return [
+    { label: 'Remove from favorites', icon: MENU_ICONS.remove, action: () => removeBookmark(bm.provider, bm.id, bm.prefix) },
+  ]
+}
+
+function showMenu(items, key, x, y) {
+  if (menuFor.value === key) { menuFor.value = null; return }
+  menuItems.value = items
+  menuPos.value = { x, y }
+  menuFor.value = key
+}
+// Anchored under the ⋯ button, right-aligned to it
+function openMenuAt(btn, items, key) {
+  const r = btn.getBoundingClientRect()
+  showMenu(items, key, r.right - 200, r.bottom + 4)
+}
+function openMenuAtPoint(e, items, key) {
+  menuFor.value = null
+  showMenu(items, key, e.clientX, e.clientY)
+}
+
+function startResize(e) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  const startX = e.clientX
+  const startW = width.value
+  resizing.value = true
+  const move = ev => setWidth(startW + ev.clientX - startX)
+  const stop = () => {
+    resizing.value = false
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop)
+}
 
 const availableProviders = computed(() => {
   const seen = new Set()

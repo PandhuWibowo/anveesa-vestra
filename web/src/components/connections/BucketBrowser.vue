@@ -4,56 +4,105 @@
        @dragleave.self="onDragLeave"
        @drop.prevent="onDrop">
 
-    <!-- ── Header ──────────────────────────────────────────────── -->
+    <!-- ── Header: location + actions ─────────────────────────── -->
     <div class="browser-hd">
       <div class="browser-hd__left">
         <div class="browser-prov-icon" :class="`browser-prov-icon--${conn.provider}`">
           <ProviderIcon :provider="conn.provider" :size="16" />
         </div>
-        <div style="min-width:0">
-          <div class="browser-conn-name">
-            {{ conn.name }}
-            <BaseBadge :provider="conn.provider" />
-          </div>
-          <div class="browser-conn-bucket">{{ conn.bucket }}</div>
-          <div class="breadcrumbs" v-if="currentPrefix">
-            <button class="bread-item" @click="navigateTo('')">root</button>
-            <template v-for="(crumb, i) in breadcrumbs" :key="i">
-              <span class="bread-sep">/</span>
+        <div class="browser-hd__titles">
+          <nav class="breadcrumbs" aria-label="Location">
+            <button class="bread-item bread-item--root" :class="{ 'is-current': !breadcrumbs.length }" @click="navigateTo('')">{{ conn.name }}</button>
+            <template v-for="(crumb, i) in visibleCrumbs" :key="crumb.prefix">
+              <svg class="bread-sep" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
               <button
                 class="bread-item"
-                :style="i === breadcrumbs.length - 1 ? 'color:var(--text-2);cursor:default' : ''"
-                @click="i < breadcrumbs.length - 1 && navigateTo(crumb.prefix)"
+                :class="{ 'is-current': i === visibleCrumbs.length - 1, 'bread-item--ellipsis': crumb.ellipsis }"
+                :title="crumb.ellipsis ? crumb.prefix : crumb.label"
+                @click="i < visibleCrumbs.length - 1 && navigateTo(crumb.prefix)"
               >{{ crumb.label }}</button>
             </template>
+          </nav>
+          <div class="browser-conn-bucket">
+            <BaseBadge :provider="conn.provider" />
+            <span>{{ conn.bucket }}</span>
           </div>
         </div>
       </div>
 
       <div class="browser-hd__actions">
-        <!-- Bookmark this location -->
-        <button class="icon-btn" :class="{ 'is-bookmarked': isCurrentBookmarked }" @click="toggleCurrentBookmark" :title="isCurrentBookmarked ? 'Remove bookmark' : 'Bookmark this location'">
-          <svg width="13" height="13" viewBox="0 0 24 24" :fill="isCurrentBookmarked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-          </svg>
-        </button>
-        <button class="icon-btn" :style="showStats ? 'background:var(--accent-bg);color:var(--accent);border-color:var(--accent-ring)' : ''" @click="toggleStats" title="Bucket stats">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-        </button>
-        <button class="icon-btn" :disabled="loading" @click="refresh" title="Refresh (R)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="loading ? 'animation:spin .6s linear infinite' : ''">
-            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-        </button>
-        <button class="icon-btn danger" @click="$emit('delete')" title="Delete connection">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-          </svg>
-        </button>
+        <div class="search-field">
+          <span class="search-field__icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/>
+            </svg>
+          </span>
+          <input ref="searchInput" class="search-field__input" v-model="searchQuery" placeholder="Search" @keydown.escape.stop="searchQuery = ''" />
+          <button v-if="searchQuery" class="search-field__clear" @click="searchQuery = ''">×</button>
+        </div>
+
+        <div class="seg-toggle" role="group" aria-label="View">
+          <button :class="{ 'is-active': viewMode === 'table' }" @click="viewMode !== 'table' && toggleView()" title="List view">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button :class="{ 'is-active': viewMode === 'grid' }" @click="viewMode !== 'grid' && toggleView()" title="Grid view">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+          </button>
+        </div>
+
+        <!-- More -->
+        <div class="menu-anchor">
+          <button class="icon-btn icon-btn--plain" :class="{ 'is-on': openMenu === 'more' }" @click.stop="toggleMenu('more')" title="More">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+          </button>
+          <transition name="menu-pop">
+            <div v-if="openMenu === 'more'" class="menu" @click="openMenu = null">
+              <button class="menu__item" :disabled="loading" @click="refresh">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>
+                Refresh <kbd class="menu__kbd">R</kbd>
+              </button>
+              <button class="menu__item" @click="toggleCurrentBookmark">
+                <svg width="15" height="15" viewBox="0 0 24 24" :fill="isCurrentBookmarked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                {{ isCurrentBookmarked ? 'Remove from favorites' : 'Add to favorites' }}
+              </button>
+              <button class="menu__item" @click="$emit('split')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                {{ splitActive ? 'Close side-by-side' : 'Open side-by-side' }}
+              </button>
+              <button class="menu__item" @click="toggleStats">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                {{ showStats ? 'Hide bucket size' : 'Show bucket size' }}
+              </button>
+            </div>
+          </transition>
+        </div>
+
+        <!-- New -->
+        <div class="menu-anchor">
+          <button class="base-btn base-btn--primary" @click.stop="toggleMenu('new')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New
+          </button>
+          <transition name="menu-pop">
+            <div v-if="openMenu === 'new'" class="menu" @click="openMenu = null">
+              <button class="menu__item" @click="fileUploadInput?.click()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+                Upload files
+              </button>
+              <button class="menu__item" @click="folderUploadInput?.click()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="17" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg>
+                Upload folder
+              </button>
+              <div class="menu__sep"></div>
+              <button class="menu__item" @click="showFolderModal = true">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                New folder
+              </button>
+            </div>
+          </transition>
+          <input ref="fileUploadInput" type="file" multiple hidden @change="onFileInput" />
+          <input ref="folderUploadInput" type="file" webkitdirectory hidden @change="onFolderInput" />
+        </div>
       </div>
     </div>
 
@@ -81,60 +130,6 @@
         </template>
       </div>
     </transition>
-
-    <!-- ── Toolbar ──────────────────────────────────────────────── -->
-    <div class="browser-toolbar">
-      <div class="search-field">
-        <span class="search-field__icon">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </span>
-        <input ref="searchInput" class="search-field__input" v-model="searchQuery" placeholder="Search files… (/)" @keydown.escape.stop="searchQuery = ''" />
-        <button v-if="searchQuery" class="search-field__clear" @click="searchQuery = ''">×</button>
-      </div>
-
-      <div class="toolbar-spacer"></div>
-
-      <!-- View toggle -->
-      <button class="icon-btn" @click="toggleView" :title="viewMode === 'table' ? 'Switch to grid view' : 'Switch to table view'">
-        <svg v-if="viewMode === 'table'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-          <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-        </svg>
-      </button>
-
-      <!-- New folder -->
-      <button class="icon-btn" @click="showFolderModal = true" title="New folder">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
-        </svg>
-      </button>
-
-      <!-- Upload files -->
-      <label class="upload-label" title="Upload files">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
-          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
-        </svg>
-        Upload
-        <input type="file" multiple style="display:none" @change="onFileInput" />
-      </label>
-
-      <!-- Upload folder -->
-      <label class="upload-label" title="Upload folder (preserves subfolders)">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="19"/>
-        </svg>
-        Folder
-        <input ref="folderUploadInput" type="file" webkitdirectory style="display:none" @change="onFolderInput" />
-      </label>
-    </div>
 
     <!-- ── Upload queue ─────────────────────────────────────────── -->
     <transition name="slide-down">
@@ -221,7 +216,7 @@
       </div>
 
       <!-- Grid view -->
-      <div v-else-if="viewMode === 'grid'" class="file-grid">
+      <div v-else-if="viewMode === 'grid'" class="file-grid" @mouseleave="focusedIdx = -1">
         <div
           v-for="(entry, entryIdx) in filteredEntries"
           :key="entry.name"
@@ -229,6 +224,7 @@
           :class="{ 'is-dir': entry.type === 'dir', 'is-selected': selected.has(entry.name), 'is-focused': entryIdx === focusedIdx, 'is-drop-target': dragOverEntry?.name === entry.name && isCrossTarget }"
           @mouseenter="focusedIdx = entryIdx"
           @click="entry.type === 'dir' ? navigateTo(entry.name) : openPreview(entry)"
+          @contextmenu.prevent="openRowMenu($event, entry, true)"
           :draggable="entry.type === 'file'"
           @dragstart="onRowDragStart($event, entry)"
           @dragend="onRowDragEnd"
@@ -237,7 +233,7 @@
         >
           <div class="file-card__thumb">
             <img v-if="isImage(entry) && entry.url" :src="entry.url" class="file-card__img" :alt="entry.display || 'thumbnail'" />
-            <svg v-else-if="entry.type === 'dir'" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="color:var(--aws);opacity:.8">
+            <svg v-else-if="entry.type === 'dir'" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="color:var(--folder)">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
             <!-- Video -->
@@ -276,16 +272,18 @@
       </div>
 
       <!-- File table -->
-      <table v-else class="file-table">
+      <table v-else class="file-table" :class="{ 'has-selection': selected.size > 0 }">
         <thead>
           <tr>
             <th class="col-check">
               <input
+                v-if="fileEntries.length"
                 type="checkbox"
                 :checked="allFilesSelected"
                 :indeterminate="someFilesSelected && !allFilesSelected"
                 @change="toggleSelectAll"
-                title="Select all files"
+                title="Select all files in this folder"
+                aria-label="Select all files in this folder"
               />
             </th>
             <th class="sortable" @click="cycleSort('name')">
@@ -297,15 +295,16 @@
             <th class="sortable" @click="cycleSort('date')">
               Modified <span class="sort-indicator" :class="{active: sortKey==='date'}">{{ sortKey==='date' ? (sortDir==='asc'?'↑':'↓') : '↕' }}</span>
             </th>
-            <th style="width:198px"></th>
+            <th style="width:84px"></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody @mouseleave="focusedIdx = -1">
           <tr
             v-for="(entry, entryIdx) in filteredEntries"
             :key="entry.name"
             class="file-row"
-            :class="{ 'is-dir': entry.type === 'dir', 'is-selected': selected.has(entry.name), 'is-focused': entryIdx === focusedIdx, 'is-drop-target': dragOverEntry?.name === entry.name && isCrossTarget }"
+            :class="{ 'is-dir': entry.type === 'dir', 'is-selected': selected.has(entry.name), 'is-focused': entryIdx === focusedIdx, 'is-drop-target': dragOverEntry?.name === entry.name && isCrossTarget, 'has-menu': rowMenuFor === entry.name }"
+            @contextmenu.prevent="openRowMenu($event, entry, true)"
             @mouseenter="focusedIdx = entryIdx"
             :draggable="entry.type === 'file'"
             @dragstart="onRowDragStart($event, entry)"
@@ -317,8 +316,8 @@
               <input v-if="entry.type === 'file'" type="checkbox" :checked="selected.has(entry.name)" @change="toggleSelect(entry.name)" />
             </td>
             <td>
-              <div class="file-name" :style="entry.type === 'dir' ? 'cursor:pointer' : ''" @click="entry.type === 'dir' && navigateTo(entry.name)">
-                <svg v-if="entry.type === 'dir'" class="file-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="color:var(--aws)">
+              <div class="file-name" @click="entry.type === 'dir' ? navigateTo(entry.name) : openPreview(entry)">
+                <svg v-if="entry.type === 'dir'" class="file-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="color:var(--folder)">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" opacity=".8"/>
                 </svg>
                 <!-- Image -->
@@ -355,94 +354,17 @@
             <td class="file-size">{{ entry.type === 'dir' ? '—' : formatSize(entry.size) }}</td>
             <td class="file-date">{{ entry.type === 'dir' ? '—' : formatDate(entry.updated) }}</td>
             <td class="file-actions">
-              <!-- Copy path -->
-              <button class="row-btn" @click.stop="copyPath(entry)" title="Copy storage path (s3://…)">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-              </button>
-              <!-- Copy public URL (file only) -->
-              <button v-if="entry.type === 'file'" class="row-btn" @click.stop="copyPublicUrl(entry)" title="Copy link (presigned URL)">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-              </button>
-              <!-- Folder actions -->
-              <template v-if="entry.type === 'dir'">
-                <!-- Download folder as zip -->
-                <button class="row-btn" @click.stop="downloadZip(entry.name, [])" :disabled="zipping" title="Download folder as Zip">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              <div class="row-actions">
+                <button v-if="entry.type === 'file'" class="row-btn" @click.stop="download(entry)" title="Download" aria-label="Download">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
                   </svg>
                 </button>
-                <!-- Delete folder -->
-                <button class="row-btn danger" @click.stop="confirmDeleteFolder(entry)" title="Delete folder">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                  </svg>
+                <button class="row-btn" :class="{ 'is-open': rowMenuFor === entry.name }" aria-label="More actions" aria-haspopup="menu"
+                  @click.stop="openRowMenu($event, entry)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
                 </button>
-              </template>
-              <template v-if="entry.type === 'file'">
-                <!-- Rename -->
-                <button class="row-btn" @click.stop="openRename(entry)" title="Rename / Move">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
-                <!-- Transfer -->
-                <button class="row-btn" @click.stop="openTransfer(entry)" title="Transfer to another connection">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
-                </button>
-                <!-- Download -->
-                <button class="row-btn" @click.stop="download(entry)" title="Download">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-                <!-- Preview / info -->
-                <button class="row-btn" @click.stop="openPreview(entry)" title="Preview">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
-                <!-- Versions -->
-                <button v-if="supportsVersioning" class="row-btn" @click.stop="openVersions(entry)" title="Version history">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                  </svg>
-                </button>
-                <!-- Metadata -->
-                <button class="row-btn" @click.stop="openMeta(entry)" title="Metadata">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                </button>
-                <!-- Generate shareable link -->
-                <button class="row-btn" @click.stop="openPresign(entry)" title="Generate shareable link">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                  </svg>
-                </button>
-                <!-- CLI command -->
-                <button class="row-btn" @click.stop="openCli(entry)" title="Copy CLI command">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
-                  </svg>
-                </button>
-                <!-- Delete -->
-                <button class="row-btn danger" @click.stop="confirmDelete(entry)" title="Delete">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                  </svg>
-                </button>
-              </template>
+              </div>
             </td>
           </tr>
 
@@ -454,19 +376,9 @@
           </tr>
         </tbody>
       </table>
-      <!-- Keyboard hints -->
-      <div class="kb-hints">
-        <span><kbd>j</kbd><kbd>k</kbd> navigate</span>
-        <span><kbd>↵</kbd> open</span>
-        <span><kbd>Space</kbd> preview</span>
-        <span><kbd>d</kbd> download</span>
-        <span><kbd>Del</kbd> delete</span>
-        <span><kbd>/</kbd> search</span>
-        <span><kbd>r</kbd> refresh</span>
-        <span><kbd>f</kbd> fullscreen</span>
-        <span><kbd>⌫</kbd> up</span>
-      </div>
     </div>
+
+    <ContextMenu :open="!!rowMenuFor" :x="rowMenuPos.x" :y="rowMenuPos.y" :items="rowMenuItems" @close="rowMenuFor = null" />
 
     <!-- ── Preview panel ────────────────────────────────────────── -->
     <transition name="slide-right">
@@ -988,6 +900,7 @@ import DOMPurify from 'dompurify'
 import BaseBadge    from '../ui/BaseBadge.vue'
 import BaseModal    from '../ui/BaseModal.vue'
 import ProviderIcon from '../ui/ProviderIcon.vue'
+import ContextMenu  from '../ui/ContextMenu.vue'
 import { useConnections }   from '../../composables/useConnections.js'
 import { useToast }         from '../../composables/useToast.js'
 import { useConfirm }       from '../../composables/useConfirm.js'
@@ -1001,6 +914,7 @@ import {
   isExcel, isWord, isPowerPoint,
   fileCategory, languageLabel,
 } from '../../utils/fileTypes.js'
+import { downloadURL } from '../../utils/download.js'
 import * as XLSX from 'xlsx'
 import mammoth from 'mammoth'
 
@@ -1009,8 +923,9 @@ const props = defineProps({
   connections: { type: Array,  default: () => [] },
   startPrefix: { type: String, default: '' },
   paneId:      { type: String, default: 'solo' }, // 'left' | 'right' | 'solo'
+  splitActive: { type: Boolean, default: false },
 })
-defineEmits(['delete'])
+defineEmits(['delete', 'split'])
 
 const { browseObjects, getDownloadURL, proxyDownload, presignUrl, zipDownload, deleteObject, copyObject, uploadObjects, uploadObjectWithProgress, deletePrefix, transferObject, watchTransferProgress, getBucketStats, getObjectMetadata, updateObjectMetadata, createFolder: createFolderApi, listVersions, restoreVersion, deleteVersion } = useConnections()
 const toast   = useToast()
@@ -1174,9 +1089,87 @@ const searchInput      = ref(null)
 const bodyEl           = ref(null)
 const sentinel         = ref(null)
 const folderUploadInput = ref(null)
+const fileUploadInput   = ref(null)
+
+// ── Per-file menu (⋯ button or right-click) ─────────────────────
+const ico = d => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
+const ROW_ICONS = {
+  open:     ico('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
+  folder:   ico('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
+  download: ico('<path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
+  zip:      ico('<path d="M21 8v13H3V8"/><path d="M23 3H1v5h22V3z"/><path d="M10 12h4"/>'),
+  rename:   ico('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+  transfer: ico('<path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/>'),
+  share:    ico('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>'),
+  link:     ico('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+  path:     ico('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  info:     ico('<circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
+  history:  ico('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>'),
+  cli:      ico('<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>'),
+  trash:    ico('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),
+}
+
+function rowMenu(entry) {
+  if (entry.type === 'dir') {
+    return [
+      { label: 'Open',               icon: ROW_ICONS.folder, action: () => navigateTo(entry.name) },
+      { label: 'Download as zip',    icon: ROW_ICONS.zip,    action: () => downloadZip(entry.name, []) },
+      { separator: true },
+      { label: 'Copy path',          icon: ROW_ICONS.path,   action: () => copyPath(entry) },
+      { separator: true },
+      { label: 'Delete folder',      icon: ROW_ICONS.trash,  danger: true, action: () => confirmDeleteFolder(entry) },
+    ]
+  }
+  return [
+    { label: 'Preview',                  icon: ROW_ICONS.open,     action: () => openPreview(entry) },
+    { label: 'Download',                 icon: ROW_ICONS.download, action: () => download(entry) },
+    { separator: true },
+    { label: 'Rename or move',           icon: ROW_ICONS.rename,   action: () => openRename(entry) },
+    { label: 'Copy to another storage',  icon: ROW_ICONS.transfer, action: () => openTransfer(entry) },
+    { label: 'Share link…',              icon: ROW_ICONS.share,    action: () => openPresign(entry) },
+    { separator: true },
+    { label: 'Copy link',                icon: ROW_ICONS.link,    action: () => copyPublicUrl(entry) },
+    { label: 'Copy path',                icon: ROW_ICONS.path,     action: () => copyPath(entry) },
+    { label: 'Copy CLI command',         icon: ROW_ICONS.cli,      action: () => openCli(entry) },
+    { separator: true },
+    { label: 'Details',                  icon: ROW_ICONS.info,     action: () => openMeta(entry) },
+    ...(supportsVersioning.value ? [{ label: 'Version history', icon: ROW_ICONS.history, action: () => openVersions(entry) }] : []),
+    { separator: true },
+    { label: 'Delete',                   icon: ROW_ICONS.trash,    danger: true, action: () => confirmDelete(entry) },
+  ]
+}
+
+const rowMenuFor   = ref(null)
+const rowMenuPos   = ref({ x: 0, y: 0 })
+const rowMenuItems = ref([])
+
+// ⋯ opens below the button, right-aligned; right-click opens at the pointer
+function openRowMenu(e, entry, atPointer = false) {
+  if (!atPointer && rowMenuFor.value === entry.name) { rowMenuFor.value = null; return }
+  rowMenuFor.value = null
+  const r = e.currentTarget.getBoundingClientRect()
+  rowMenuPos.value = atPointer ? { x: e.clientX, y: e.clientY } : { x: r.right - 220, y: r.bottom + 4 }
+  rowMenuItems.value = rowMenu(entry)
+  rowMenuFor.value = entry.name
+}
+
+// Header dropdowns ('new' | 'more'); any outside click closes them.
+const openMenu = ref(null)
+function toggleMenu(name) { openMenu.value = openMenu.value === name ? null : name }
+function closeMenus() { openMenu.value = null }
+onMounted(() => document.addEventListener('click', closeMenus))
+onUnmounted(() => document.removeEventListener('click', closeMenus))
 let   observer         = null
 
 // ── Breadcrumbs ─────────────────────────────────────────────────
+// Deep paths keep the first and last two folders: root › a › … › y › z
+const visibleCrumbs = computed(() => {
+  const all = breadcrumbs.value
+  if (all.length <= 3) return all
+  const hidden = all[all.length - 3]
+  return [all[0], { label: '…', prefix: hidden.prefix, ellipsis: true }, ...all.slice(-2)]
+})
+
 const breadcrumbs = computed(() => {
   if (!currentPrefix.value) return []
   const parts = currentPrefix.value.replace(/\/$/, '').split('/')
@@ -1326,9 +1319,7 @@ async function bulkDownload() {
   for (const entry of files) {
     try {
       const url = await getDownloadURL(props.conn.provider, props.conn.id, entry.name)
-      const a = document.createElement('a')
-      a.href = url; a.download = entry.display; a.target = '_blank'; a.rel = 'noopener'
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      downloadURL(url, entry.display)
       await new Promise(r => setTimeout(r, 300)) // small delay to avoid popup block
     } catch (err) { toast.error('Download failed: ' + entry.display) }
   }
@@ -1465,9 +1456,7 @@ function copyPath(entry) {
 async function download(entry) {
   try {
     const url = await getDownloadURL(props.conn.provider, props.conn.id, entry.name)
-    const a = document.createElement('a')
-    a.href = url; a.download = entry.display; a.target = '_blank'; a.rel = 'noopener'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    downloadURL(url, entry.display)
     activityLog('download', `Downloaded "${entry.display}"`, props.conn.provider)
   } catch (err) {
     toast.error('Download failed: ' + err.message)

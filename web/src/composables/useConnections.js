@@ -8,6 +8,19 @@ const saving      = ref(false)
 const error       = ref('')
 const notice      = ref('')
 
+// The backend answers errors as {"error": "..."}; surface just the message.
+function errorMessage(text, status) {
+  try {
+    const msg = JSON.parse(text)?.error
+    if (msg) return msg.charAt(0).toUpperCase() + msg.slice(1)
+  } catch { /* not JSON */ }
+  return text?.trim() || `Request failed (HTTP ${status})`
+}
+
+async function apiError(res) {
+  return new Error(errorMessage(await res.text(), res.status))
+}
+
 export function useConnections() {
   const { authHeaders } = useAuth()
 
@@ -128,7 +141,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, prefix, page_token: pageToken }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -140,7 +153,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return (await res.json()).url
   }
 
@@ -150,7 +163,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ provider, connection_id: connectionId, object }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res
   }
 
@@ -160,7 +173,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, object, expires_in: expiresIn }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return (await res.json()).url
   }
 
@@ -170,7 +183,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ provider, connection_id: connectionId, prefix: prefix ?? '', objects: objects ?? [] }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.blob()
   }
 
@@ -180,7 +193,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, object }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
   }
 
   async function copyObject(provider, connectionId, source, destination, deleteSource = true) {
@@ -189,7 +202,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, source, destination, delete_source: deleteSource }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
   }
 
   async function uploadObjects(provider, connectionId, prefix, files) {
@@ -199,7 +212,7 @@ export function useConnections() {
       form.append('prefix',      prefix)
       form.append('file',        file)
       return fetch(BASE[provider] + '/bucket/upload', { method: 'POST', headers: authHeaders(), body: form }).then(r => {
-        if (!r.ok) return r.text().then(t => { throw new Error(t) })
+        if (!r.ok) return apiError(r).then(e => { throw e })
       })
     }))
   }
@@ -210,7 +223,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, prefix }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -227,7 +240,7 @@ export function useConnections() {
         dst_prefix:        dst.prefix,
       }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json() // { transfer_id, destination }
   }
 
@@ -253,7 +266,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -265,7 +278,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, object }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -275,7 +288,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, object, ...patch }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
   }
 
   // ── compat (flat listing) ────────────────────────────────────
@@ -286,7 +299,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     const data = await res.json()
     return { objects: data.objects ?? [], truncated: data.truncated ?? false }
   }
@@ -297,7 +310,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, prefix, name }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -363,7 +376,7 @@ export function useConnections() {
       })
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve()
-        else reject(new Error(xhr.responseText || `HTTP ${xhr.status}`))
+        else reject(new Error(errorMessage(xhr.responseText, xhr.status)))
       })
       xhr.addEventListener('error', () => reject(new Error('Network error')))
       xhr.open('POST', BASE[provider] + '/bucket/upload')
@@ -384,7 +397,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -400,7 +413,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -417,7 +430,7 @@ export function useConnections() {
       body:    JSON.stringify(body),
     })
     if (res.status === 204) return
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
   }
 
   // ── versioning ───────────────────────────────────────────────
@@ -431,7 +444,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify({ connection_id: connectionId, object }),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -444,7 +457,7 @@ export function useConnections() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body:    JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
     return res.json()
   }
 
@@ -458,7 +471,7 @@ export function useConnections() {
       body:    JSON.stringify(body),
     })
     if (res.status === 204) return
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw await apiError(res)
   }
 
   return {

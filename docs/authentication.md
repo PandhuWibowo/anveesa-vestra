@@ -96,4 +96,5 @@ This is useful for local development or private networks where access control is
 - Connection credentials are encrypted at rest using AES with the `ENCRYPTION_KEY`.
 - All protected API endpoints require a valid `Authorization: Bearer <token>` header.
 - A **rate limiter** (20 requests/second per IP, burst of 60) is applied to all API endpoints to prevent brute-force attacks.
-- RBAC (role-based access control) middleware exists in the codebase but is not yet enforced on routes.
+- Vestra is single-user: there is one owner account, no user management, roles, or OAuth sign-in.
+- The desktop app runs with auth disabled. Its backend binds to `127.0.0.1` on a random port and rejects any request without the per-launch desktop token, which only the app's own window carries.
