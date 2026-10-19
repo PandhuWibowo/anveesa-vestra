@@ -79,8 +79,8 @@
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.3;margin-bottom:8px">
                   <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>
                 </svg>
-                <p>Select a connection from the sidebar</p>
-                <p style="font-size:11px;color:var(--muted);margin-top:4px">Click any connection to open it in this pane</p>
+                <p>Pick a storage from the sidebar</p>
+                <p style="font-size:12px;color:var(--muted);margin-top:4px">It opens here, next to the current one. Drag files across to copy them.</p>
               </div>
             </div>
             <BucketBrowser
@@ -344,7 +344,7 @@ function handleImport() {
     if (!file) return
     try {
       const count = await importConnections(file)
-      toast.success(`Imported ${count} connection(s).`)
+      toast.success(`Imported ${count} ${count === 1 ? 'storage' : 'storages'}.`)
       fetchConnections()
     } catch (err) {
       toast.error('Import failed: ' + err.message)
@@ -367,7 +367,7 @@ async function handleSave(provider, form, resolve) {
       editingConn.value  = null
       mode.value         = 'browse'
     }
-    toast.success('Connection saved.')
+    toast.success('Storage added.')
   }
   resolve?.(success)
 }
@@ -383,7 +383,7 @@ async function handleUpdate(provider, form, resolve, id) {
     }
     editingConn.value = null
     mode.value        = activeConn.value ? 'browse' : 'home'
-    toast.success('Connection updated.')
+    toast.success('Changes saved.')
   }
   resolve?.(success)
 }
@@ -391,9 +391,11 @@ async function handleUpdate(provider, form, resolve, id) {
 // ── Delete ────────────────────────────────────────────────────
 
 async function handleDelete(provider, id) {
+  const name = connections.value.find(c => c.provider === provider && c.id === id)?.name ?? 'this storage'
   const ok = await confirm.confirm(
-    'Are you sure you want to permanently delete this connection? This cannot be undone.',
-    'Delete Connection'
+    `Vestra will forget ${name} and its saved keys. Files in the bucket aren't touched.`,
+    `Remove ${name}?`,
+    { confirmLabel: 'Remove' }
   )
   if (!ok) return
   if (activeConn.value?.id === id && activeConn.value?.provider === provider) {

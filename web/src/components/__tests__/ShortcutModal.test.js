@@ -14,7 +14,7 @@ describe('ShortcutModal', () => {
       global: { stubs: { teleport: true } },
     })
     expect(wrapper.find('.shortcut-modal').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Keyboard Shortcuts')
+    expect(wrapper.text()).toContain('Keyboard shortcuts')
   })
 
   it('displays all shortcut groups', () => {
@@ -23,8 +23,8 @@ describe('ShortcutModal', () => {
       global: { stubs: { teleport: true } },
     })
     expect(wrapper.text()).toContain('Navigation')
-    expect(wrapper.text()).toContain('File Actions')
-    expect(wrapper.text()).toContain('Global')
+    expect(wrapper.text()).toContain('Files')
+    expect(wrapper.text()).toContain('App')
   })
 
   it('emits close when close button clicked', async () => {

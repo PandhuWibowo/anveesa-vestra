@@ -1,111 +1,130 @@
 <template>
   <div class="form-view">
     <div class="form-view__hd">
-      <h1 class="form-view__title">{{ editConn ? 'Edit Connection' : 'New Connection' }}</h1>
+      <h1 class="form-view__title">{{ editConn ? 'Edit storage' : 'Add storage' }}</h1>
       <p class="form-view__sub">
-        {{ editConn ? 'Update the connection details below.' : 'Test and save a cloud bucket to start browsing files.' }}
+        {{ editConn ? 'Update the details, then enter your keys again to save.' : 'Connect a bucket from any of these providers. Your keys are encrypted and stay on this device.' }}
       </p>
     </div>
 
-    <!-- Provider grid (disabled in edit mode) -->
-    <div class="provider-grid">
-      <button
-        v-for="p in PROVIDERS"
-        :key="p.id"
-        class="provider-card"
-        :class="[`provider-card--${p.id}`, { 'provider-card--active': provider === p.id }]"
-        :disabled="!!editConn && provider !== p.id"
-        @click="!editConn && (provider = p.id)"
-      >
-        <div class="provider-card__icon" :class="`provider-card__icon--${p.id}`">
-          <ProviderIcon :provider="p.id" :size="18" />
-        </div>
-        <div class="provider-card__info">
-          <span class="provider-card__name">{{ p.name }}</span>
-          <span class="provider-card__sub">{{ p.sub }}</span>
-        </div>
-      </button>
-    </div>
+    <!-- 1. Provider -->
+    <section class="form-step">
+      <h2 class="form-step__title">Provider</h2>
+      <div class="provider-grid">
+        <button
+          v-for="p in PROVIDERS"
+          :key="p.id"
+          type="button"
+          class="provider-card"
+          :class="{ 'provider-card--active': provider === p.id }"
+          :disabled="!!editConn && provider !== p.id"
+          @click="!editConn && (provider = p.id)"
+        >
+          <div class="provider-card__icon" :class="`provider-card__icon--${p.id}`">
+            <ProviderIcon :provider="p.id" :size="18" />
+          </div>
+          <div class="provider-card__info">
+            <span class="provider-card__name">{{ p.name }}</span>
+            <span class="provider-card__sub">{{ p.sub }}</span>
+          </div>
+        </button>
+      </div>
+    </section>
 
     <form @submit.prevent="handleSave" class="conn-form">
-      <div class="form-group">
-        <label class="form-label" for="conn-name">Name</label>
-        <BaseInput v-model="form.name" id="conn-name" placeholder="e.g. Production Storage" required />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="conn-bucket">{{ provider === 'azure' ? 'Container' : provider === 'gdrive' ? 'Folder ID' : 'Bucket' }}</label>
-        <BaseInput v-model="form.bucket" id="conn-bucket" :placeholder="bucketPlaceholder" required />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="conn-creds">
-          {{ credentialsLabel }}
-          <span class="form-label-optional" v-if="provider === 'gcp'">(optional for public buckets)</span>
-        </label>
-        <textarea
-          id="conn-creds"
-          class="base-textarea"
-          v-model="form.credentials"
-          rows="6"
-          :placeholder="credentialsPlaceholder"
-        ></textarea>
-        <p v-if="provider === 'gcp'" class="form-hint">
-          Leave empty to connect to a publicly accessible GCS bucket.
-        </p>
-        <p v-else-if="provider === 'huawei'" class="form-hint">
-          The <code style="font-family:var(--mono);font-size:11px">"endpoint"</code> field is required, e.g. <code style="font-family:var(--mono);font-size:11px">https://obs.cn-north-4.myhuaweicloud.com</code>.
-        </p>
-        <p v-else-if="provider === 'alibaba'" class="form-hint">
-          The <code style="font-family:var(--mono);font-size:11px">"endpoint"</code> field is required, e.g. <code style="font-family:var(--mono);font-size:11px">https://oss-cn-hangzhou.aliyuncs.com</code>.
-        </p>
-        <p v-else-if="provider === 'azure'" class="form-hint">
-          "Container" is the Azure Blob container name. The <code style="font-family:var(--mono);font-size:11px">"account_key"</code> is the base64 key from the Azure portal → Storage account → Access keys.
-        </p>
-        <div v-else-if="provider === 'gdrive'" class="gdrive-guide">
-          <div class="gdrive-guide__warning">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span><strong>Google Workspace required.</strong> Shared Drives are not available on personal Google accounts. Uploading to a personal "My Drive" folder will fail.</span>
-          </div>
-
-          <p class="gdrive-guide__label">Setup steps</p>
-          <ol class="gdrive-guide__steps">
-            <li>
-              <span class="gdrive-guide__step-title">Enable Google Drive API</span>
-              <span class="gdrive-guide__step-desc">Google Cloud Console → APIs &amp; Services → Library → search <em>Google Drive API</em> → Enable.</span>
-            </li>
-            <li>
-              <span class="gdrive-guide__step-title">Create a Service Account &amp; download JSON key</span>
-              <span class="gdrive-guide__step-desc">IAM &amp; Admin → Service Accounts → Create → Keys → Add Key → JSON.</span>
-            </li>
-            <li>
-              <span class="gdrive-guide__step-title">Create a Shared Drive</span>
-              <span class="gdrive-guide__step-desc">In Google Drive, click <em>Shared drives</em> in the sidebar → <em>New</em>.</span>
-            </li>
-            <li>
-              <span class="gdrive-guide__step-title">Add service account as member</span>
-              <span class="gdrive-guide__step-desc">Right-click the Shared Drive → <em>Manage members</em> → add the <code>client_email</code> from the JSON with role <strong>Contributor</strong> or <strong>Content manager</strong>.</span>
-            </li>
-            <li>
-              <span class="gdrive-guide__step-title">Copy the Folder ID</span>
-              <span class="gdrive-guide__step-desc">Open the Shared Drive or subfolder — the Folder ID is the last segment of the URL:</span>
-              <span class="gdrive-guide__url">drive.google.com/drive/folders/<strong>1AbCdEfGhIjKlMnOpQr</strong></span>
-            </li>
-          </ol>
+      <!-- 2. Details -->
+      <section class="form-step">
+        <h2 class="form-step__title">Details</h2>
+        <div class="form-row">
+          <label class="field">
+            <span class="form-label">Name</span>
+            <input class="base-input" v-model="form.name" placeholder="e.g. Product media" required />
+          </label>
+          <label class="field">
+            <span class="form-label">{{ bucketLabel }}</span>
+            <input class="base-input" v-model="form.bucket" :placeholder="bucketPlaceholder" required />
+          </label>
         </div>
-        <p v-else-if="provider === 'wasabi'" class="form-hint">
-          Region examples: <code style="font-family:var(--mono);font-size:11px">us-east-1</code>, <code style="font-family:var(--mono);font-size:11px">eu-central-1</code>, <code style="font-family:var(--mono);font-size:11px">ap-northeast-1</code>. Match the endpoint to your region.
-        </p>
-        <p v-else-if="provider === 'digitalocean'" class="form-hint">
-          Replace <code style="font-family:var(--mono);font-size:11px">nyc3</code> with your region (sfo3, ams3, sgp1, etc.) in both <code style="font-family:var(--mono);font-size:11px">region</code> and <code style="font-family:var(--mono);font-size:11px">endpoint</code>.
-        </p>
-        <p v-else-if="provider === 'backblaze'" class="form-hint">
-          Use the S3-Compatible API keys from B2 Cloud Storage → App Keys. The endpoint region must match your bucket region.
-        </p>
-        <p v-else class="form-hint">
-          For Cloudflare R2 or MinIO, include an <code style="font-family:var(--mono);font-size:11px">"endpoint"</code> key pointing to your custom S3-compatible URL.
-        </p>
-      </div>
+      </section>
+
+      <!-- 3. Access -->
+      <section class="form-step">
+        <h2 class="form-step__title">Access</h2>
+
+        <!-- Google: service account key file -->
+        <template v-if="kind === 'json'">
+          <div class="field">
+            <div class="details-hd">
+              <span class="form-label">
+                Service account key
+                <span v-if="provider === 'gcp'" class="form-label__opt">(not needed for public buckets)</span>
+              </span>
+              <label class="link-btn">
+                Choose key file…
+                <input type="file" accept=".json,application/json" hidden @change="loadKeyFile" />
+              </label>
+            </div>
+            <textarea class="base-textarea" v-model="jsonKey" rows="5" spellcheck="false"
+              placeholder='Paste the JSON key, or choose the file you downloaded from Google Cloud'></textarea>
+            <span v-if="keyFileName" class="field-hint">Loaded {{ keyFileName }}</span>
+          </div>
+          <details v-if="provider === 'gdrive'" class="form-help">
+            <summary>How to set up Google Drive</summary>
+            <ol>
+              <li>In Google Cloud Console, enable the <strong>Google Drive API</strong>.</li>
+              <li>Create a service account and download its JSON key.</li>
+              <li>In Google Drive, create a <strong>Shared drive</strong> (needs Google Workspace).</li>
+              <li>Add the service account's <code>client_email</code> to the shared drive as <strong>Contributor</strong>.</li>
+              <li>Open the shared drive; the folder ID is the last part of the URL.</li>
+            </ol>
+          </details>
+        </template>
+
+        <!-- Azure: account name + key -->
+        <div v-else-if="kind === 'azure'" class="form-row">
+          <label class="field">
+            <span class="form-label">Storage account</span>
+            <input class="base-input" v-model="keys.account_name" placeholder="e.g. mystorageaccount" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="form-label">Account key</span>
+            <div class="secret-field">
+              <input class="base-input" :type="showSecret ? 'text' : 'password'" v-model="keys.account_key" placeholder="From Access keys in the Azure portal" autocomplete="off" />
+              <button type="button" class="secret-field__toggle" @click="showSecret = !showSecret">{{ showSecret ? 'Hide' : 'Show' }}</button>
+            </div>
+          </label>
+        </div>
+
+        <!-- S3-style access keys -->
+        <template v-else>
+          <div class="form-row">
+            <label class="field">
+              <span class="form-label">Access key ID</span>
+              <input class="base-input mono" v-model="keys.access_key_id" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="field">
+              <span class="form-label">Secret access key</span>
+              <div class="secret-field">
+                <input class="base-input mono" :type="showSecret ? 'text' : 'password'" v-model="keys.secret_access_key" autocomplete="off" spellcheck="false" />
+                <button type="button" class="secret-field__toggle" @click="showSecret = !showSecret">{{ showSecret ? 'Hide' : 'Show' }}</button>
+              </div>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="field">
+              <span class="form-label">Region</span>
+              <input class="base-input" v-model="keys.region" :placeholder="'e.g. ' + hints.region" />
+            </label>
+            <label class="field">
+              <span class="form-label">
+                Endpoint
+                <span v-if="!endpointRequired" class="form-label__opt">(only for R2 or MinIO)</span>
+              </span>
+              <input class="base-input" v-model="keys.endpoint" :placeholder="hints.endpoint" />
+            </label>
+          </div>
+        </template>
+      </section>
 
       <StatusNotice :message="error"  type="error"   />
       <StatusNotice :message="notice" type="success" />
@@ -115,7 +134,7 @@
           {{ testing ? 'Testing…' : 'Test connection' }}
         </BaseButton>
         <BaseButton type="submit" variant="primary" :loading="saving" :disabled="!formValid || saving">
-          {{ saving ? 'Saving…' : (editConn ? 'Update' : 'Save') }}
+          {{ saving ? 'Saving…' : (editConn ? 'Save changes' : 'Add storage') }}
         </BaseButton>
       </div>
     </form>
@@ -124,22 +143,31 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import BaseInput    from '../ui/BaseInput.vue'
 import BaseButton   from '../ui/BaseButton.vue'
 import StatusNotice from '../ui/StatusNotice.vue'
 import ProviderIcon from '../ui/ProviderIcon.vue'
 
 const PROVIDERS = [
-  { id: 'gcp',          name: 'Google Cloud Storage', sub: 'GCS' },
-  { id: 'aws',          name: 'AWS S3',                sub: 'S3 · R2 · MinIO' },
-  { id: 'gdrive',       name: 'Google Drive',          sub: 'Drive API v3' },
-  { id: 'huawei',       name: 'Huawei OBS',            sub: 'Object Storage' },
-  { id: 'alibaba',      name: 'Alibaba Cloud OSS',     sub: 'Object Storage' },
-  { id: 'azure',        name: 'Azure Blob Storage',    sub: 'Blob Storage' },
-  { id: 'wasabi',       name: 'Wasabi',                sub: 'S3-compatible',  backend: 'aws' },
-  { id: 'digitalocean', name: 'DigitalOcean Spaces',   sub: 'S3-compatible',  backend: 'aws' },
-  { id: 'backblaze',    name: 'Backblaze B2',          sub: 'S3-compatible',  backend: 'aws' },
+  { id: 'gcp',          name: 'Google Cloud Storage', sub: 'Buckets' },
+  { id: 'aws',          name: 'Amazon S3',            sub: 'Also R2 and MinIO' },
+  { id: 'azure',        name: 'Azure Blob Storage',   sub: 'Containers' },
+  { id: 'gdrive',       name: 'Google Drive',         sub: 'Shared drives' },
+  { id: 'huawei',       name: 'Huawei OBS',           sub: 'Object storage' },
+  { id: 'alibaba',      name: 'Alibaba Cloud OSS',    sub: 'Object storage' },
+  { id: 'wasabi',       name: 'Wasabi',               sub: 'S3-compatible', backend: 'aws' },
+  { id: 'digitalocean', name: 'DigitalOcean Spaces',  sub: 'S3-compatible', backend: 'aws' },
+  { id: 'backblaze',    name: 'Backblaze B2',         sub: 'S3-compatible', backend: 'aws' },
 ]
+
+// Example values per provider, shown as placeholders
+const HINTS = {
+  aws:          { region: 'us-east-1',   endpoint: 'https://<account>.r2.cloudflarestorage.com' },
+  huawei:       { region: 'ap-southeast-4', endpoint: 'https://obs.ap-southeast-4.myhuaweicloud.com' },
+  alibaba:      { region: 'cn-hangzhou', endpoint: 'https://oss-cn-hangzhou.aliyuncs.com' },
+  wasabi:       { region: 'us-east-1',   endpoint: 'https://s3.us-east-1.wasabisys.com' },
+  digitalocean: { region: 'nyc3',        endpoint: 'https://nyc3.digitaloceanspaces.com' },
+  backblaze:    { region: 'us-west-004', endpoint: 'https://s3.us-west-004.backblazeb2.com' },
+}
 
 const props = defineProps({
   testing:  { type: Boolean, default: false },
@@ -151,84 +179,92 @@ const props = defineProps({
 
 const emit = defineEmits(['test', 'save'])
 
-const provider = ref(props.editConn?.provider ?? 'gcp')
-const form     = ref({
-  name:        props.editConn?.name        ?? '',
-  bucket:      props.editConn?.bucket      ?? '',
-  credentials: props.editConn?.credentials ?? '',
-})
+const emptyKeys = () => ({ access_key_id: '', secret_access_key: '', region: '', endpoint: '', account_name: '', account_key: '' })
 
-// Re-sync when editConn changes (e.g. switching which connection to edit)
-watch(() => props.editConn, conn => {
+const provider    = ref(props.editConn?.provider ?? 'gcp')
+const form        = ref({ name: '', bucket: '' })
+const keys        = ref(emptyKeys())
+const jsonKey     = ref('')
+const keyFileName = ref('')
+const showSecret  = ref(false)
+
+// Fill the fields from a connection being edited (its saved credentials, if any)
+function load(conn) {
   provider.value = conn?.provider ?? 'gcp'
-  form.value = {
-    name:        conn?.name        ?? '',
-    bucket:      conn?.bucket      ?? '',
-    credentials: conn?.credentials ?? '',
-  }
-})
+  form.value = { name: conn?.name ?? '', bucket: conn?.bucket ?? '' }
+  keys.value = emptyKeys()
+  jsonKey.value = ''
+  keyFileName.value = ''
+  if (!conn?.credentials) return
+  try {
+    const parsed = JSON.parse(conn.credentials)
+    if (parsed.type || parsed.client_email) jsonKey.value = conn.credentials
+    else Object.assign(keys.value, parsed)
+  } catch { jsonKey.value = conn.credentials }
+}
+load(props.editConn)
+watch(() => props.editConn, load)
+watch(provider, () => { showSecret.value = false })
+
+const kind = computed(() =>
+  provider.value === 'gcp' || provider.value === 'gdrive' ? 'json'
+  : provider.value === 'azure' ? 'azure' : 'keys')
+
+const hints = computed(() => HINTS[provider.value] ?? HINTS.aws)
+const endpointRequired = computed(() => provider.value !== 'aws')
 
 const backendProvider = computed(() => {
   const p = PROVIDERS.find(x => x.id === provider.value)
   return p?.backend || provider.value
 })
 
+const bucketLabel = computed(() =>
+  provider.value === 'azure' ? 'Container' : provider.value === 'gdrive' ? 'Folder ID' : 'Bucket')
+
 const bucketPlaceholder = computed(() => {
-  if (provider.value === 'gcp')     return 'my-bucket-name'
-  if (provider.value === 'gdrive')  return '1A2B3C_folderIdFromURL'
-  if (provider.value === 'huawei')  return 'my-obs-bucket'
-  if (provider.value === 'alibaba') return 'my-oss-bucket'
-  if (provider.value === 'azure')   return 'my-container'
-  return 'my-s3-bucket'
+  if (provider.value === 'gdrive') return 'From the shared drive URL'
+  if (provider.value === 'azure')  return 'e.g. backups'
+  return 'e.g. my-bucket'
 })
 
-const credentialsLabel = computed(() => {
-  if (provider.value === 'gcp')     return 'Service account JSON'
-  if (provider.value === 'gdrive')  return 'Service Account JSON'
-  if (provider.value === 'huawei')  return 'OBS Credentials JSON'
-  if (provider.value === 'alibaba') return 'OSS Credentials JSON'
-  if (provider.value === 'azure')   return 'Azure Credentials JSON'
-  return 'Credentials JSON'
+// The API stores credentials as one JSON string per provider
+const credentials = computed(() => {
+  if (kind.value === 'json') return jsonKey.value.trim()
+  const k = keys.value
+  const pick = kind.value === 'azure'
+    ? { account_name: k.account_name.trim(), account_key: k.account_key.trim() }
+    : { access_key_id: k.access_key_id.trim(), secret_access_key: k.secret_access_key.trim(), region: k.region.trim(), endpoint: k.endpoint.trim() }
+  for (const key of Object.keys(pick)) if (!pick[key]) delete pick[key]
+  return JSON.stringify(pick)
 })
 
-const gcpPlaceholder     = `{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}`
-const awsPlaceholder     = `{\n  "access_key_id": "...",\n  "secret_access_key": "...",\n  "region": "us-east-1",\n  "endpoint": "https://...r2.cloudflarestorage.com"  ← optional, for R2/MinIO\n}`
-const huaweiPlaceholder  = `{\n  "access_key_id": "...",\n  "secret_access_key": "...",\n  "endpoint": "https://obs.cn-north-4.myhuaweicloud.com",\n  "region": "cn-north-4"\n}`
-const alibabaPlaceholder = `{\n  "access_key_id": "...",\n  "secret_access_key": "...",\n  "endpoint": "https://oss-cn-hangzhou.aliyuncs.com",\n  "region": "cn-hangzhou"\n}`
-const azurePlaceholder   = `{\n  "account_name": "mystorageaccount",\n  "account_key": "base64key=="\n}`
-const wasabiPlaceholder  = `{\n  "access_key_id": "...",\n  "secret_access_key": "...",\n  "region": "us-east-1",\n  "endpoint": "https://s3.wasabisys.com"\n}`
-const doPlaceholder      = `{\n  "access_key_id": "...",\n  "secret_access_key": "...",\n  "region": "nyc3",\n  "endpoint": "https://nyc3.digitaloceanspaces.com"\n}`
-const b2Placeholder      = `{\n  "access_key_id": "...",\n  "secret_access_key": "...",\n  "region": "us-west-004",\n  "endpoint": "https://s3.us-west-004.backblazeb2.com"\n}`
-
-const credentialsPlaceholder = computed(() => {
-  if (provider.value === 'gcp')          return gcpPlaceholder
-  if (provider.value === 'gdrive')       return gcpPlaceholder
-  if (provider.value === 'huawei')       return huaweiPlaceholder
-  if (provider.value === 'alibaba')      return alibabaPlaceholder
-  if (provider.value === 'azure')        return azurePlaceholder
-  if (provider.value === 'wasabi')       return wasabiPlaceholder
-  if (provider.value === 'digitalocean') return doPlaceholder
-  if (provider.value === 'backblaze')    return b2Placeholder
-  return awsPlaceholder
+const credentialsComplete = computed(() => {
+  const k = keys.value
+  if (kind.value === 'json')  return provider.value === 'gcp' || jsonKey.value.trim().length > 0
+  if (kind.value === 'azure') return !!(k.account_name.trim() && k.account_key.trim())
+  return !!(k.access_key_id.trim() && k.secret_access_key.trim() && (!endpointRequired.value || k.endpoint.trim()))
 })
 
 const formValid = computed(() =>
-  form.value.name.trim().length > 0 &&
-  form.value.bucket.trim().length > 0 &&
-  (provider.value === 'gcp' || form.value.credentials.trim().length > 0)
-)
+  form.value.name.trim().length > 0 && form.value.bucket.trim().length > 0 && credentialsComplete.value)
+
+async function loadKeyFile(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  jsonKey.value = (await file.text()).trim()
+  keyFileName.value = file.name
+}
 
 function handleTest() {
-  emit('test', backendProvider.value, form.value.bucket, form.value.credentials)
+  emit('test', backendProvider.value, form.value.bucket, credentials.value)
 }
 
 async function handleSave() {
+  const payload = { name: form.value.name, bucket: form.value.bucket, credentials: credentials.value }
   const success = await new Promise(resolve =>
-    emit('save', backendProvider.value, { ...form.value }, resolve, props.editConn?.id ?? null)
+    emit('save', backendProvider.value, payload, resolve, props.editConn?.id ?? null)
   )
-  if (success && !props.editConn) {
-    // Only reset form on create; keep values visible on edit
-    form.value = { name: '', bucket: '', credentials: '' }
-  }
+  if (success && !props.editConn) load(null)
 }
 </script>

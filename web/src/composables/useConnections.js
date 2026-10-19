@@ -73,7 +73,7 @@ export function useConnections() {
         body:    JSON.stringify({ bucket, credentials }),
       })
       if (!res.ok) error.value = 'Test failed: ' + await res.text()
-      else notice.value = 'Connection test succeeded ✓'
+      else notice.value = 'Connected. Everything looks good.'
     } catch (err) {
       error.value = 'Error: ' + err.message
     } finally {
@@ -91,7 +91,7 @@ export function useConnections() {
         body:    JSON.stringify(form),
       })
       if (!res.ok) { error.value = 'Save failed: ' + await res.text(); return false }
-      notice.value = 'Connection saved ✓'
+      notice.value = 'Storage added.'
       await fetchConnections()
       return true
     } catch (err) {
@@ -112,7 +112,7 @@ export function useConnections() {
         body:    JSON.stringify(form),
       })
       if (!res.ok) { error.value = 'Update failed: ' + await res.text(); return false }
-      notice.value = 'Connection updated ✓'
+      notice.value = 'Changes saved.'
       await fetchConnections()
       return true
     } catch (err) {

@@ -1,7 +1,7 @@
 {
   "name": "anveesa-vestra-desktop",
   "productName": "Anveesa Vestra",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "Personal cloud storage manager for GCS, S3, Azure, OSS, OBS and Google Drive",
   "author": "Pandhu Wibowo",
   "license": "MIT",

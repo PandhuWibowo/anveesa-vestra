@@ -2,159 +2,100 @@
 import { onMounted, onUnmounted } from 'vue'
 
 defineProps({
-  open: {
-    type: Boolean,
-    default: false,
-  },
+  open: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
 
+const mod = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'
+
+const GROUPS = [
+  { title: 'Navigation', rows: [
+    [['J'], 'Next item'], [['K'], 'Previous item'],
+    [['Enter'], 'Open folder or preview file'], [['Backspace'], 'Go up one folder'],
+    [['/'], 'Search this folder'],
+  ]},
+  { title: 'Files', rows: [
+    [['Space'], 'Preview'], [['F'], 'Full-screen preview'], [['D'], 'Download'],
+    [['Delete'], 'Delete'], [['R'], 'Refresh'],
+  ]},
+  { title: 'App', rows: [
+    [['N'], 'Add storage'], [[mod, '\\'], 'Show or hide sidebar'],
+    [['Esc'], 'Close panel or dialog'], [['?'], 'Show these shortcuts'],
+  ]},
+]
+
 function handleEscape(e) {
-  if (e.key === 'Escape') {
-    emit('close')
-  }
+  if (e.key === 'Escape') emit('close')
 }
 
-onMounted(() => {
-  window.addEventListener('keydown', handleEscape)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleEscape)
-})
+onMounted(() => window.addEventListener('keydown', handleEscape))
+onUnmounted(() => window.removeEventListener('keydown', handleEscape))
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="shortcut-overlay" @click.self="emit('close')">
-      <div class="shortcut-modal">
-        <div class="shortcut-modal__hd">
-          <h3>Keyboard Shortcuts</h3>
-          <button class="shortcut-modal__close" @click="emit('close')" aria-label="Close">&times;</button>
-        </div>
-        <div class="shortcut-modal__body">
-          <div class="shortcut-group">
-            <h4>Navigation</h4>
-            <div class="shortcut-row"><kbd>N</kbd><span>New connection</span></div>
-            <div class="shortcut-row"><kbd>/</kbd><span>Focus search</span></div>
-            <div class="shortcut-row"><kbd>J</kbd><span>Move down</span></div>
-            <div class="shortcut-row"><kbd>K</kbd><span>Move up</span></div>
-            <div class="shortcut-row"><kbd>Enter</kbd><span>Open directory or preview</span></div>
-            <div class="shortcut-row"><kbd>Backspace</kbd><span>Go up one level</span></div>
-            <div class="shortcut-row"><kbd>Escape</kbd><span>Close preview / modal</span></div>
+    <transition name="modal-fade">
+      <div v-if="open" class="shortcut-overlay modal-backdrop" @click.self="emit('close')">
+        <div class="shortcut-modal modal modal--wide" role="dialog" aria-label="Keyboard shortcuts">
+          <div class="modal-hd">
+            <div class="modal-hd__text">
+              <h3 class="modal-title">Keyboard shortcuts</h3>
+            </div>
+            <button class="shortcut-modal__close modal-close" @click="emit('close')" aria-label="Close">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
-          <div class="shortcut-group">
-            <h4>File Actions</h4>
-            <div class="shortcut-row"><kbd>Space</kbd><span>Toggle file preview</span></div>
-            <div class="shortcut-row"><kbd>D</kbd><span>Download selected file</span></div>
-            <div class="shortcut-row"><kbd>Delete</kbd><span>Delete selected file</span></div>
-            <div class="shortcut-row"><kbd>R</kbd><span>Refresh file list</span></div>
-          </div>
-          <div class="shortcut-group">
-            <h4>Global</h4>
-            <div class="shortcut-row"><kbd>?</kbd><span>Show this help</span></div>
+          <div class="shortcut-grid">
+            <section v-for="g in GROUPS" :key="g.title" class="shortcut-group">
+              <h4>{{ g.title }}</h4>
+              <div v-for="([keys, label], i) in g.rows" :key="i" class="shortcut-row">
+                <span>{{ label }}</span>
+                <span class="shortcut-keys"><kbd v-for="k in keys" :key="k">{{ k }}</kbd></span>
+              </div>
+            </section>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
 <style scoped>
-.shortcut-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 28px;
+  padding: 10px 22px 22px;
 }
-
-.shortcut-modal {
-  background: var(--n-color-modal, #fff);
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-  max-width: 420px;
-  width: 90%;
-  max-height: 85vh;
-  overflow: hidden;
-}
-
-.shortcut-modal__hd {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--n-border-color, #e0e0e0);
-}
-
-.shortcut-modal__hd h3 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-}
-
-.shortcut-modal__close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-  opacity: 0.7;
-}
-
-.shortcut-modal__close:hover {
-  opacity: 1;
-}
-
-.shortcut-modal__body {
-  padding: 16px 20px;
-  overflow-y: auto;
-  max-height: calc(85vh - 60px);
-}
-
-.shortcut-group {
-  margin-bottom: 16px;
-}
-
-.shortcut-group:last-child {
-  margin-bottom: 0;
-}
-
 .shortcut-group h4 {
-  margin: 0 0 8px 0;
-  font-size: 0.75rem;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--n-text-color-3, #999);
+  color: var(--muted);
+  margin: 12px 0 4px;
 }
-
 .shortcut-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 6px 0;
+  height: 32px;
+  font-size: 13px;
+  color: var(--text);
 }
-
-.shortcut-row kbd {
-  display: inline-block;
-  min-width: 28px;
-  padding: 4px 8px;
-  font-family: inherit;
-  font-size: 0.8125rem;
-  text-align: center;
-  background: var(--n-color, #f0f0f0);
-  border: 1px solid var(--n-border-color, #ddd);
-  border-radius: 4px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
-}
-
-.shortcut-row span {
-  font-size: 0.875rem;
-  color: var(--n-text-color-2, #333);
+.shortcut-keys { display: flex; gap: 4px; }
+kbd {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  border-bottom-width: 2px;
+  background: var(--surface-2);
+  font: 500 11.5px var(--font);
+  color: var(--text-2);
 }
 </style>

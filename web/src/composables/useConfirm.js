@@ -1,12 +1,19 @@
 import { ref } from 'vue'
 
 // Module-level singleton — renders one confirm dialog at a time.
-const pending = ref(null) // { title, message, resolve }
+// options: { confirmLabel = 'Confirm', danger = true }
+const pending = ref(null) // { title, message, confirmLabel, danger, resolve }
 
 export function useConfirm() {
-  function confirm(message, title = 'Are you sure?') {
+  function confirm(message, title = 'Are you sure?', options = {}) {
     return new Promise(resolve => {
-      pending.value = { title, message, resolve }
+      pending.value = {
+        title,
+        message,
+        confirmLabel: options.confirmLabel ?? 'Confirm',
+        danger: options.danger ?? true,
+        resolve,
+      }
     })
   }
 

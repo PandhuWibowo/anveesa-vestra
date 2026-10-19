@@ -110,6 +110,8 @@ The Vite dev server proxies `/api` requests to `http://localhost:8080` (the Go b
 
 ## Code Conventions
 
+- **Design**: `DESIGN.md` is the source of truth for UI (tokens, components, copy, anti-patterns). Follow it for every page, menu and dialog.
+
 - **Go**: Standard library HTTP patterns, no framework. Handlers return JSON. Use `log.Printf` for logging.
 - **Vue**: Composition API with `<script setup>`. Naive UI components for UI. Composables for shared logic.
 - **CSS**: Single global `styles.css` file, no CSS framework.

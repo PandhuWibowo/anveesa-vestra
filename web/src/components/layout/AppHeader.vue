@@ -200,9 +200,9 @@ function connMenu(c) {
   const pinned = isPinned(c.provider, c.id)
   return [
     { label: pinned ? 'Unpin' : 'Pin to top', icon: pinned ? MENU_ICONS.unpin : MENU_ICONS.pin, action: () => togglePin(c.provider, c.id) },
-    { label: 'Edit connection', icon: MENU_ICONS.edit, action: () => emit('edit', c) },
+    { label: 'Edit…', icon: MENU_ICONS.edit, action: () => emit('edit', c) },
     { separator: true },
-    { label: 'Delete connection', icon: MENU_ICONS.trash, danger: true, action: () => emit('delete', c.provider, c.id) },
+    { label: 'Remove from Vestra…', icon: MENU_ICONS.trash, danger: true, action: () => emit('delete', c.provider, c.id) },
   ]
 }
 function bookmarkMenu(bm) {

@@ -138,7 +138,7 @@
           <div class="upload-item-row">
             <span class="upload-item-name">{{ item.name }}</span>
             <span class="upload-item-status" :class="{ done: item.done, error: item.error }">
-              {{ item.error ? '✗' : item.done ? '✓' : `${Math.round(item.progress * 100)}%` }}
+              {{ item.error ? 'Failed' : item.done ? 'Done' : `${Math.round(item.progress * 100)}%` }}
             </span>
             <button v-if="item.error && item.file" class="upload-retry-btn" @click="retryUpload(i)" title="Retry">↻</button>
           </div>
@@ -211,8 +211,9 @@
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4;margin-bottom:6px">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
-        <p>{{ searchQuery ? 'No files match your search.' : 'This folder is empty.' }}</p>
-        <button v-if="searchQuery" class="base-btn base-btn--ghost" @click="searchQuery = ''" style="font-size:12px;padding:6px 12px;margin-top:4px">Clear search</button>
+        <p>{{ searchQuery ? `Nothing here matches “${searchQuery}”.` : 'This folder is empty.' }}</p>
+        <button v-if="searchQuery" class="base-btn base-btn--ghost" @click="searchQuery = ''" style="margin-top:6px">Clear search</button>
+        <button v-else class="base-btn base-btn--ghost" @click="fileUploadInput?.click()" style="margin-top:6px">Upload files</button>
       </div>
 
       <!-- Grid view -->
@@ -384,7 +385,10 @@
     <transition name="slide-right">
       <div v-if="previewEntry && !metaEntry" class="preview-panel" :class="{ 'preview-panel--fullscreen': previewFullscreen }">
         <div class="preview-hd">
-          <span class="preview-hd__name">{{ previewEntry.display }}</span>
+          <div class="preview-hd__text">
+            <span class="preview-hd__name" :title="previewEntry.display">{{ previewEntry.display }}</span>
+            <span class="preview-hd__meta">{{ formatSize(previewEntry.size) }}<template v-if="previewEntry.updated"> · {{ formatDate(previewEntry.updated) }}</template></span>
+          </div>
           <div style="display:flex;align-items:center;gap:4px">
             <button class="preview-hd-btn" @click="togglePreviewFullscreen" :title="previewFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'">
               <svg v-if="!previewFullscreen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -394,7 +398,9 @@
                 <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>
               </svg>
             </button>
-            <button class="preview-close" @click="closePreview">×</button>
+            <button class="preview-close" @click="closePreview" aria-label="Close" title="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
           </div>
         </div>
 
@@ -619,55 +625,56 @@
     <transition name="slide-right">
       <div v-if="metaEntry" class="preview-panel">
         <div class="preview-hd">
-          <span class="preview-hd__name">{{ metaEntry.display }} — Metadata</span>
-          <button class="preview-close" @click="metaEntry = null">×</button>
+          <div class="preview-hd__text">
+            <span class="preview-hd__name" :title="metaEntry.display">{{ metaEntry.display }}</span>
+            <span class="preview-hd__meta">Details</span>
+          </div>
+          <button class="preview-close" @click="metaEntry = null" aria-label="Close" title="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
         <div class="preview-body" style="padding:0">
           <div v-if="metaLoading" class="preview-unsupported">
             <div class="base-btn__spinner" style="width:20px;height:20px;border-width:2px"></div>
           </div>
-          <div v-else-if="metaData" style="padding:16px;display:flex;flex-direction:column;gap:14px">
-            <!-- Content-Type -->
-            <div class="meta-field">
-              <label class="meta-label">Content-Type</label>
-              <input class="base-input" v-model="metaEdit.content_type" style="font-size:12px;padding:6px 10px" />
-            </div>
-            <!-- Cache-Control -->
-            <div class="meta-field">
-              <label class="meta-label">Cache-Control</label>
-              <input class="base-input" v-model="metaEdit.cache_control" style="font-size:12px;padding:6px 10px" />
-            </div>
-            <!-- Custom metadata -->
-            <div class="meta-field">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                <label class="meta-label" style="margin-bottom:0">Custom Metadata</label>
-                <button class="base-btn base-btn--ghost" @click="addMetaRow" style="font-size:11px;padding:3px 8px">+ Add</button>
+          <div v-else-if="metaData" class="details">
+            <dl class="details-facts">
+              <dt>Size</dt><dd>{{ formatSize(metaData.size) }}</dd>
+              <template v-if="metaData.updated"><dt>Modified</dt><dd>{{ formatDate(metaData.updated) }}</dd></template>
+              <template v-if="metaData.etag"><dt>ETag</dt><dd class="mono">{{ metaData.etag }}</dd></template>
+              <template v-if="metaData.md5"><dt>MD5</dt><dd class="mono">{{ metaData.md5 }}</dd></template>
+            </dl>
+
+            <label class="field">
+              <span class="form-label">Content type</span>
+              <input class="base-input" v-model="metaEdit.content_type" placeholder="e.g. image/png" />
+            </label>
+            <label class="field">
+              <span class="form-label">Cache control</span>
+              <input class="base-input" v-model="metaEdit.cache_control" placeholder="e.g. max-age=3600" />
+            </label>
+
+            <div class="field">
+              <div class="details-hd">
+                <span class="form-label">Custom metadata</span>
+                <button class="link-btn" @click="addMetaRow">Add field</button>
               </div>
               <div v-for="(pair, i) in metaRows" :key="i" class="meta-row">
-                <input class="base-input" v-model="pair.key" placeholder="key" style="font-size:11px;padding:5px 8px;flex:1" />
-                <input class="base-input" v-model="pair.val" placeholder="value" style="font-size:11px;padding:5px 8px;flex:2" />
-                <button class="row-btn danger" @click="metaRows.splice(i,1)" style="opacity:1;flex-shrink:0">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
+                <input class="base-input" v-model="pair.key" placeholder="Name" style="flex:1" />
+                <input class="base-input" v-model="pair.val" placeholder="Value" style="flex:1.6" />
+                <button class="icon-btn icon-btn--plain" @click="metaRows.splice(i,1)" aria-label="Remove field" title="Remove field">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
-              <p v-if="metaRows.length === 0" style="font-size:11px;color:var(--muted)">No custom metadata.</p>
-            </div>
-            <!-- Read-only info -->
-            <div style="padding:10px;background:var(--surface-2);border-radius:var(--r-sm);font-size:11px;color:var(--muted);line-height:1.8">
-              <div>Size: <strong style="color:var(--text-2)">{{ formatSize(metaData.size) }}</strong></div>
-              <div v-if="metaData.etag">ETag: <strong style="color:var(--text-2);font-family:var(--mono)">{{ metaData.etag }}</strong></div>
-              <div v-if="metaData.md5">MD5: <strong style="color:var(--text-2);font-family:var(--mono)">{{ metaData.md5 }}</strong></div>
-              <div v-if="metaData.updated">Modified: <strong style="color:var(--text-2)">{{ formatDate(metaData.updated) }}</strong></div>
+              <p v-if="metaRows.length === 0" class="field-hint">None yet.</p>
             </div>
           </div>
           <div v-else-if="metaError" class="preview-unsupported" style="font-size:12px">{{ metaError }}</div>
         </div>
         <div class="preview-ft">
-          <button class="base-btn base-btn--ghost" @click="metaEntry = null" style="font-size:12px;padding:5px 10px">Cancel</button>
-          <button class="base-btn base-btn--primary" @click="saveMeta" :disabled="metaSaving" style="font-size:12px;padding:5px 12px">
-            {{ metaSaving ? 'Saving…' : 'Save' }}
+          <button class="base-btn base-btn--ghost" @click="metaEntry = null">Cancel</button>
+          <button class="base-btn base-btn--primary" @click="saveMeta" :disabled="metaSaving">
+            {{ metaSaving ? 'Saving…' : 'Save changes' }}
           </button>
         </div>
       </div>
@@ -677,8 +684,13 @@
     <transition name="slide-right">
       <div v-if="versionsEntry" class="preview-panel">
         <div class="preview-hd">
-          <span class="preview-hd__name">{{ versionsEntry.display }} — Versions</span>
-          <button class="preview-close" @click="versionsEntry = null">×</button>
+          <div class="preview-hd__text">
+            <span class="preview-hd__name" :title="versionsEntry.display">{{ versionsEntry.display }}</span>
+            <span class="preview-hd__meta">Version history</span>
+          </div>
+          <button class="preview-close" @click="versionsEntry = null" aria-label="Close" title="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
         <div class="preview-body" style="padding:0">
           <div v-if="versionsLoading" class="preview-unsupported">
@@ -686,8 +698,8 @@
           </div>
           <div v-else-if="versionsError" class="preview-unsupported" style="font-size:12px">{{ versionsError }}</div>
           <div v-else-if="!versions.length" class="preview-unsupported">
-            <p style="font-size:13px;color:var(--text-2)">No versions found.</p>
-            <p style="font-size:11px;color:var(--muted)">Versioning may not be enabled on this bucket.</p>
+            <p style="font-size:13px;color:var(--text-2)">No earlier versions</p>
+            <p class="field-hint">Turn on versioning for this bucket to keep a history of changes.</p>
           </div>
           <table v-else class="file-table" style="font-size:12px">
             <thead>
@@ -732,29 +744,30 @@
     <!-- ── Modals ────────────────────────────────────────────────── -->
 
     <!-- New folder -->
-    <BaseModal :open="showFolderModal" title="New Folder" @update:open="showFolderModal = false">
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <label class="form-label">Folder name</label>
+    <BaseModal :open="showFolderModal" title="New folder" @update:open="showFolderModal = false">
+      <template #description>Creates a folder in <strong>{{ currentFolderLabel }}</strong>.</template>
+      <label class="field">
+        <span class="form-label">Name</span>
         <input
           ref="folderInput"
           class="base-input"
           v-model="newFolderName"
-          placeholder="e.g. images"
+          placeholder="e.g. invoices"
           @keydown.enter="createFolder"
           @keydown.escape.stop="showFolderModal = false"
         />
-        <p class="form-hint">A placeholder file (<code style="font-family:var(--mono)">.keep</code>) will be uploaded inside the new folder.</p>
-      </div>
+      </label>
       <template #footer>
         <button class="base-btn base-btn--ghost" @click="showFolderModal = false">Cancel</button>
-        <button class="base-btn base-btn--primary" @click="createFolder" :disabled="!newFolderName.trim()">Create</button>
+        <button class="base-btn base-btn--primary" @click="createFolder" :disabled="!newFolderName.trim()">Create folder</button>
       </template>
     </BaseModal>
 
     <!-- Rename / Move -->
-    <BaseModal :open="showRenameModal" :title="`Rename: ${renameEntry?.display ?? ''}`" @update:open="showRenameModal = false">
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <label class="form-label">New name (within current folder)</label>
+    <BaseModal :open="showRenameModal" title="Rename or move" @update:open="showRenameModal = false">
+      <template #description>Give <strong>{{ renameEntry?.display }}</strong> a new name, or include a folder path to move it.</template>
+      <label class="field">
+        <span class="form-label">New name</span>
         <input
           ref="renameInput"
           class="base-input"
@@ -762,79 +775,76 @@
           @keydown.enter="doRename"
           @keydown.escape.stop="showRenameModal = false"
         />
-        <p class="form-hint">Current: <code style="font-family:var(--mono)">{{ renameEntry?.name }}</code></p>
-      </div>
+        <span class="field-hint">e.g. <code>report-final.pdf</code> or <code>archive/report.pdf</code></span>
+      </label>
       <template #footer>
         <button class="base-btn base-btn--ghost" @click="showRenameModal = false">Cancel</button>
         <button class="base-btn base-btn--primary" @click="doRename" :disabled="!renameTarget.trim() || renaming">
-          {{ renaming ? 'Moving…' : 'Move' }}
+          {{ renaming ? 'Saving…' : 'Save' }}
         </button>
       </template>
     </BaseModal>
 
-    <!-- Transfer -->
-    <BaseModal :open="showTransferModal" title="Transfer File" @update:open="showTransferModal = false">
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <p style="font-size:13px;color:var(--text-2)">Transfer <strong style="color:var(--text)">{{ transferEntry?.display }}</strong> to another connection.</p>
-        <div>
-          <label class="form-label">Destination Connection</label>
-          <div class="transfer-conn-list">
-            <div
-              v-for="c in otherConnections" :key="`${c.provider}-${c.id}`"
-              class="transfer-conn-item"
-              :class="{ active: transferDstConn?.id === c.id && transferDstConn?.provider === c.provider }"
-              @click="transferDstConn = c"
-            >
-              <ProviderIcon :provider="c.provider" :size="12" />
-              <span>{{ c.name }}</span>
-              <span style="color:var(--muted);font-size:11px">{{ c.bucket }}</span>
-            </div>
-            <p v-if="!otherConnections.length" style="font-size:12px;color:var(--muted);padding:8px 4px">No other connections available.</p>
-          </div>
-        </div>
-        <div>
-          <label class="form-label">Destination Prefix <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-          <input class="base-input" v-model="transferDstPrefix" placeholder="e.g. backups/" style="font-size:12px" />
+    <!-- Copy to another storage -->
+    <BaseModal :open="showTransferModal" title="Copy to another storage" @update:open="showTransferModal = false">
+      <template #description>Copies <strong>{{ transferEntry?.display }}</strong>. The original stays where it is.</template>
+      <div class="field">
+        <span class="form-label">Copy to</span>
+        <div class="pick-list">
+          <button
+            v-for="c in otherConnections" :key="`${c.provider}-${c.id}`"
+            class="pick-item"
+            :class="{ 'is-active': transferDstConn?.id === c.id && transferDstConn?.provider === c.provider }"
+            @click="transferDstConn = c"
+          >
+            <span class="conn-badge" :class="`conn-badge--${c.provider}`"><ProviderIcon :provider="c.provider" :size="12" /></span>
+            <span class="pick-item__name">{{ c.name }}</span>
+            <span class="pick-item__meta">{{ c.bucket }}</span>
+            <svg class="pick-item__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <p v-if="!otherConnections.length" class="field-hint" style="padding:10px">Add another storage first.</p>
         </div>
       </div>
+      <label class="field">
+        <span class="form-label">Folder <span class="form-label__opt">(optional)</span></span>
+        <input class="base-input" v-model="transferDstPrefix" placeholder="e.g. backups/" />
+      </label>
       <template #footer>
         <button class="base-btn base-btn--ghost" @click="showTransferModal = false">Cancel</button>
         <button class="base-btn base-btn--primary" @click="doTransfer" :disabled="!transferDstConn || transferring">
-          {{ transferring ? 'Transferring…' : 'Transfer' }}
+          {{ transferring ? 'Copying…' : 'Copy' }}
         </button>
       </template>
     </BaseModal>
 
-    <!-- Shareable link modal -->
-    <BaseModal :open="showPresignModal" title="Generate Shareable Link" @update:open="showPresignModal = false">
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <p style="font-size:13px;color:var(--text-2)">Create a time-limited link for <strong style="color:var(--text)">{{ presignEntry?.display }}</strong>.</p>
-        <div>
-          <label class="form-label">Link expires in</label>
-          <div class="presign-presets">
-            <button
-              v-for="p in PRESIGN_PRESETS" :key="p.value"
-              class="presign-chip"
-              :class="{ active: presignExpiresIn === p.value }"
-              @click="presignExpiresIn = p.value; presignUrl_ = ''"
-            >{{ p.label }}</button>
-          </div>
-        </div>
-        <div v-if="presignUrl_" class="presign-result">
-          <input class="base-input" :value="presignUrl_" readonly style="font-size:11px;font-family:var(--mono)" />
-          <button class="base-btn base-btn--primary" @click="copyPresignUrl" style="font-size:12px;padding:6px 12px;flex-shrink:0">Copy</button>
+    <!-- Share link -->
+    <BaseModal :open="showPresignModal" title="Share link" @update:open="showPresignModal = false">
+      <template #description>Anyone with the link can download <strong>{{ presignEntry?.display }}</strong> until it expires.</template>
+      <div class="field">
+        <span class="form-label">Expires after</span>
+        <div class="segmented segmented--full">
+          <button
+            v-for="p in PRESIGN_PRESETS" :key="p.value"
+            class="segmented__btn"
+            :class="{ 'is-active': presignExpiresIn === p.value }"
+            @click="presignExpiresIn = p.value; presignUrl_ = ''"
+          >{{ p.label }}</button>
         </div>
       </div>
+      <div v-if="presignUrl_" class="copy-field">
+        <input class="base-input mono" :value="presignUrl_" readonly @focus="$event.target.select()" />
+        <button class="base-btn base-btn--primary" @click="copyPresignUrl">Copy</button>
+      </div>
       <template #footer>
-        <button class="base-btn base-btn--ghost" @click="showPresignModal = false">Close</button>
-        <button class="base-btn base-btn--primary" @click="generatePresignUrl" :disabled="presignLoading">
-          {{ presignLoading ? 'Generating…' : presignUrl_ ? 'Regenerate' : 'Generate Link' }}
+        <button class="base-btn base-btn--ghost" @click="showPresignModal = false">Done</button>
+        <button v-if="!presignUrl_" class="base-btn base-btn--primary" @click="generatePresignUrl" :disabled="presignLoading">
+          {{ presignLoading ? 'Creating…' : 'Create link' }}
         </button>
       </template>
     </BaseModal>
 
     <!-- Transfer progress modal -->
-    <BaseModal :open="showProgressModal" title="Transferring…" @update:open="showProgressModal = false">
+    <BaseModal :open="showProgressModal" :title="transferProgress?.error ? 'Copy failed' : transferProgress?.done ? 'Copied' : 'Copying…'" @update:open="showProgressModal = false">
       <div v-if="transferProgress" style="display:flex;flex-direction:column;gap:14px">
         <div style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--accent)">
@@ -846,7 +856,7 @@
         <!-- Progress bar -->
         <div>
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px">
-            <span>{{ transferProgress.error ? 'Failed' : transferProgress.done ? 'Complete' : transferProgress.total > 0 ? 'Downloading…' : 'Preparing…' }}</span>
+            <span>{{ transferProgress.error ? 'Failed' : transferProgress.done ? 'Done' : transferProgress.total > 0 ? 'Copying…' : 'Preparing…' }}</span>
             <span v-if="transferProgress.total > 0">
               {{ formatSize(transferProgress.loaded) }} / {{ formatSize(transferProgress.total) }}
             </span>
@@ -870,23 +880,26 @@
         <div v-if="transferProgress.error" style="font-size:12px;color:var(--danger)">{{ transferProgress.error }}</div>
       </div>
       <template #footer>
-        <button class="base-btn base-btn--ghost" @click="showProgressModal = false" style="font-size:12px;padding:5px 10px">
-          {{ transferProgress?.done ? 'Close' : 'Hide' }}
+        <button class="base-btn base-btn--ghost" @click="showProgressModal = false">
+          {{ transferProgress?.done || transferProgress?.error ? 'Done' : 'Hide' }}
         </button>
       </template>
     </BaseModal>
 
-    <!-- CLI command modal -->
-    <BaseModal :open="showCliModal" :title="`CLI — ${cliEntry?.display ?? ''}`" @update:open="showCliModal = false">
-      <div v-if="cliEntry" style="display:flex;flex-direction:column;gap:12px">
-        <div v-for="(cmd, label) in buildCliCommands(cliEntry)" :key="label" class="cli-row">
-          <span class="cli-label">{{ label }}</span>
-          <code class="cli-code">{{ cmd }}</code>
-          <button class="base-btn base-btn--ghost" @click="copyCli(cmd)" style="font-size:11px;padding:4px 10px;flex-shrink:0">Copy</button>
+    <!-- CLI commands -->
+    <BaseModal :open="showCliModal" title="CLI command" wide @update:open="showCliModal = false">
+      <template #description>Commands for working with <strong>{{ cliEntry?.display }}</strong> from your terminal.</template>
+      <div v-if="cliEntry" class="cli-list">
+        <div v-for="(cmd, label) in buildCliCommands(cliEntry)" :key="label" class="field">
+          <span class="form-label">{{ CLI_LABELS[label] ?? label }}</span>
+          <div class="copy-field">
+            <code class="cli-code">{{ cmd }}</code>
+            <button class="base-btn base-btn--ghost" @click="copyCli(cmd)">Copy</button>
+          </div>
         </div>
       </div>
       <template #footer>
-        <button class="base-btn base-btn--ghost" @click="showCliModal = false">Close</button>
+        <button class="base-btn base-btn--ghost" @click="showCliModal = false">Done</button>
       </template>
     </BaseModal>
 
@@ -1162,6 +1175,8 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 let   observer         = null
 
 // ── Breadcrumbs ─────────────────────────────────────────────────
+const currentFolderLabel = computed(() => breadcrumbs.value.at(-1)?.label ?? props.conn.name)
+
 // Deep paths keep the first and last two folders: root › a › … › y › z
 const visibleCrumbs = computed(() => {
   const all = breadcrumbs.value
@@ -1293,7 +1308,7 @@ function cycleSort(key) {
 // ── Bulk operations ─────────────────────────────────────────────
 async function bulkDelete() {
   const names = [...selected.value]
-  const ok = await confirm.confirm(`Delete ${names.length} file${names.length > 1 ? 's' : ''}? This cannot be undone.`, 'Bulk Delete')
+  const ok = await confirm.confirm(`This permanently deletes ${names.length} file${names.length > 1 ? 's' : ''} from ${props.conn.name}.`, `Delete ${names.length} file${names.length > 1 ? 's' : ''}?`, { confirmLabel: 'Delete' })
   if (!ok) return
   bulkWorking.value = true
   let failed = 0
@@ -1358,6 +1373,8 @@ function copyPresignUrl() {
 }
 
 // ── CLI copy ──────────────────────────────────────────────────────
+const CLI_LABELS = { download: 'Download', delete: 'Delete', ls: 'List this folder' }
+
 function buildCliCommands(entry) {
   const p = props.conn.provider
   const b = props.conn.bucket
@@ -1465,7 +1482,7 @@ async function download(entry) {
 
 // ── Delete single ───────────────────────────────────────────────
 async function confirmDelete(entry) {
-  const ok = await confirm.confirm(`Delete "${entry.display}"? This cannot be undone.`)
+  const ok = await confirm.confirm(`This permanently deletes it from ${props.conn.name}.`, `Delete ${entry.display}?`, { confirmLabel: 'Delete' })
   if (!ok) return
   try {
     await deleteObject(props.conn.provider, props.conn.id, entry.name)
@@ -1482,7 +1499,7 @@ async function confirmDelete(entry) {
 // ── Folder delete (recursive) ────────────────────────────────────
 async function confirmDeleteFolder(entry) {
   const ok = await confirm.confirm(
-    `Delete folder "${entry.display}" and all its contents? This cannot be undone.`, 'Delete Folder'
+    `Everything inside it is permanently deleted from ${props.conn.name}.`, `Delete folder ${entry.display}?`, { confirmLabel: 'Delete folder' }
   )
   if (!ok) return
   try {
@@ -2034,8 +2051,9 @@ async function doRestoreVersion(v) {
   if (versionWorking.value) return
   const versionId = v.version_id || v.generation
   const ok = await confirm.confirm(
-    `Restore this version? It will become the current version of "${versionsEntry.value?.display}".`,
-    'Restore Version'
+    `It becomes the current version of ${versionsEntry.value?.display}. The newer version stays in the history.`,
+    'Restore this version?',
+    { confirmLabel: 'Restore', danger: false }
   )
   if (!ok) return
   versionWorking.value = true
@@ -2055,8 +2073,9 @@ async function doDeleteVersion(v) {
   if (versionWorking.value) return
   const versionId = v.version_id || v.generation
   const ok = await confirm.confirm(
-    `Permanently delete this version? This cannot be undone.`,
-    'Delete Version'
+    `This version is removed from the history for good.`,
+    'Delete this version?',
+    { confirmLabel: 'Delete' }
   )
   if (!ok) return
   versionWorking.value = true

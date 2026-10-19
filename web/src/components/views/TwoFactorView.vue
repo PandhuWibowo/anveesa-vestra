@@ -2,7 +2,7 @@
   <div class="view-panel">
     <div class="view-panel__hd">
       <div>
-        <h2 class="view-panel__title">Two-Factor Authentication</h2>
+        <h2 class="view-panel__title">Two-factor authentication</h2>
         <p class="view-panel__sub">Protect your account with TOTP-based 2FA</p>
       </div>
     </div>
@@ -33,7 +33,7 @@
             :disabled="loading"
             style="font-size:13px;padding:8px 16px;flex-shrink:0"
           >
-            Enable 2FA
+            Turn on two-factor
           </button>
           <button
             v-if="totpEnabled && !disableMode"
@@ -41,7 +41,7 @@
             @click="disableMode = true"
             style="font-size:13px;padding:8px 16px;flex-shrink:0;border:1px solid var(--danger)"
           >
-            Disable 2FA
+            Turn off two-factor
           </button>
         </div>
       </div>
@@ -111,7 +111,7 @@
 
       <!-- Disable flow -->
       <div v-if="disableMode && totpEnabled" class="dash-section">
-        <h3 class="dash-section__title">Disable Two-Factor Authentication</h3>
+        <h3 class="dash-section__title">Disable Two-factor authentication</h3>
         <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">
           Enter your current authenticator code to disable 2FA.
         </p>
@@ -132,7 +132,7 @@
             :disabled="disableCode.length !== 6 || disabling"
             style="font-size:13px;padding:8px 16px;border:1px solid var(--danger)"
           >
-            {{ disabling ? 'Disabling…' : 'Disable 2FA' }}
+            {{ disabling ? 'Disabling…' : 'Turn off two-factor' }}
           </button>
           <button class="base-btn base-btn--ghost" @click="disableMode = false; disableCode = ''" style="font-size:13px">
             Cancel

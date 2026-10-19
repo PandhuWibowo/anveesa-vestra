@@ -11,19 +11,19 @@
         </div>
       </div>
 
-      <h2 class="auth-title">{{ totpChallenge ? 'Two-Factor Auth' : setupRequired ? 'Create Your Account' : 'Sign In' }}</h2>
+      <h2 class="auth-title">{{ totpChallenge ? 'Enter your code' : setupRequired ? 'Create your account' : 'Sign in' }}</h2>
       <p class="auth-sub">
         {{ totpChallenge
-          ? 'Enter the 6-digit code from your authenticator app.'
+          ? 'Open your authenticator app and enter the 6-digit code.'
           : setupRequired
           ? 'Protect your storage manager with a password.'
-          : 'Enter your credentials to continue.' }}
+          : 'Sign in to manage your storage.' }}
       </p>
 
       <!-- 2FA challenge form -->
       <form v-if="totpChallenge" @submit.prevent="handleTotpChallenge" class="auth-form">
         <div class="auth-field">
-          <label class="auth-label" for="auth-totp">Authenticator Code</label>
+          <label class="auth-label" for="auth-totp">Authenticator code</label>
           <input
             id="auth-totp"
             ref="totpInput"
@@ -41,7 +41,7 @@
         <button class="auth-submit" type="submit" :disabled="authLoading || totpCode.length !== 6">
           {{ authLoading ? 'Verifying…' : 'Verify' }}
         </button>
-        <button type="button" class="auth-back" @click="totpChallenge = null; totpCode = ''">← Back to login</button>
+        <button type="button" class="auth-back" @click="totpChallenge = null; totpCode = ''">Back to sign in</button>
       </form>
 
       <!-- Normal login / register form -->
@@ -73,7 +73,7 @@
           />
         </div>
         <div v-if="setupRequired" class="auth-field">
-          <label class="auth-label" for="auth-pass2">Confirm Password</label>
+          <label class="auth-label" for="auth-pass2">Confirm password</label>
           <input
             id="auth-pass2"
             class="auth-input"
@@ -90,7 +90,7 @@
         <p v-if="localError" class="auth-error">{{ localError }}</p>
 
         <button class="auth-submit" type="submit" :disabled="authLoading">
-          {{ authLoading ? 'Please wait…' : (setupRequired ? 'Create Account' : 'Sign In') }}
+          {{ authLoading ? 'Please wait…' : (setupRequired ? 'Create account' : 'Sign in') }}
         </button>
       </form>
 
@@ -169,9 +169,7 @@ async function handleTotpChallenge() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background:
-    radial-gradient(700px 420px at 50% 0%, var(--accent-bg), transparent 70%),
-    var(--bg);
+  background: var(--canvas);
   padding: 24px;
 }
 
@@ -252,10 +250,11 @@ async function handleTotpChallenge() {
 }
 
 .auth-input {
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
   outline: none;
@@ -263,7 +262,9 @@ async function handleTotpChallenge() {
 }
 
 .auth-input:focus {
+  background: var(--bg);
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .auth-input::placeholder {
@@ -281,9 +282,9 @@ async function handleTotpChallenge() {
 }
 
 .auth-submit {
-  padding: 10px 0;
+  height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--accent);
   color: #fff;
   font-size: 13px;
